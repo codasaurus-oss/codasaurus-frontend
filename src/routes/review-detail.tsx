@@ -26,7 +26,7 @@ import {
   reviewFindingsQueryOptions,
   reviewQueryOptions,
 } from "@/lib/api/queries"
-import type { Finding } from "@/lib/api/schemas"
+import type { Finding, ReviewDetail } from "@/lib/api/schemas"
 import { useAuth } from "@/lib/auth/auth-context"
 import { can } from "@/lib/auth/roles"
 
@@ -82,42 +82,18 @@ function Breakdown({ counts }: { counts: Record<string, number> }) {
   )
 }
 
-function ReviewDetailRoute() {
-  const { id: rawId } = useParams()
-  const id = parseReviewId(rawId)
-  const { user } = useAuth()
+function FindingsPanel({
+  review,
+  findingsByFile,
+  canDismiss,
+}: {
+  review: ReviewDetail["review"]
+  findingsByFile: Record<string, Finding[]>
+  canDismiss: boolean
+}) {
   const queryClient = useQueryClient()
-  const reviewQuery = useQuery({
-    ...reviewQueryOptions(id ?? 0),
-    enabled: id !== null,
-  })
-  const reviewStatus = reviewQuery.data?.review.status
-  const active = reviewStatus === "pending" || reviewStatus === "running"
-  const findingsQuery = useQuery({
-    ...reviewFindingsQueryOptions(id ?? 0),
-    enabled: id !== null && reviewStatus !== undefined && !active,
-  })
   const [dismissing, setDismissing] = useState(false)
   const [dismissed, setDismissed] = useState<Set<string>>(() => new Set())
-
-  if (id === null) {
-    return <NotFound />
-  }
-  if (reviewQuery.isPending) {
-    return <LoadingState rows={8} />
-  }
-  if (reviewQuery.isError) {
-    return (
-      <ErrorState
-        error={reviewQuery.error}
-        onRetry={() => void reviewQuery.refetch()}
-      />
-    )
-  }
-
-  const { review, summary } = reviewQuery.data
-  const repoName = review.repo_full_name || review.repo_name || "—"
-  const canDismiss = can(user?.role, "maintain")
 
   async function dismissFinding(finding: Finding, message: string) {
     const fingerprint = finding.fingerprint?.trim()
@@ -155,6 +131,53 @@ function ReviewDetailRoute() {
       setDismissing(false)
     }
   }
+
+  return (
+    <FindingsByFile
+      findingsByFile={findingsByFile}
+      canDismiss={canDismiss}
+      dismissing={dismissing}
+      dismissed={dismissed}
+      onDismiss={(finding, message) => {
+        void dismissFinding(finding, message)
+      }}
+    />
+  )
+}
+
+function ReviewDetailRoute() {
+  const { id: rawId } = useParams()
+  const id = parseReviewId(rawId)
+  const { user } = useAuth()
+  const reviewQuery = useQuery({
+    ...reviewQueryOptions(id ?? 0),
+    enabled: id !== null,
+  })
+  const reviewStatus = reviewQuery.data?.review.status
+  const active = reviewStatus === "pending" || reviewStatus === "running"
+  const findingsQuery = useQuery({
+    ...reviewFindingsQueryOptions(id ?? 0),
+    enabled: id !== null && reviewStatus !== undefined && !active,
+  })
+
+  if (id === null) {
+    return <NotFound />
+  }
+  if (reviewQuery.isPending) {
+    return <LoadingState rows={8} />
+  }
+  if (reviewQuery.isError) {
+    return (
+      <ErrorState
+        error={reviewQuery.error}
+        onRetry={() => void reviewQuery.refetch()}
+      />
+    )
+  }
+
+  const { review, summary } = reviewQuery.data
+  const repoName = review.repo_full_name || review.repo_name || "—"
+  const canDismiss = can(user?.role, "maintain")
 
   return (
     <div className="flex flex-col gap-4">
@@ -246,14 +269,11 @@ function ReviewDetailRoute() {
             This review reports findings, but none are available to display.
           </p>
         ) : (
-          <FindingsByFile
+          <FindingsPanel
+            key={review.id}
+            review={review}
             findingsByFile={findingsQuery.data.findings_by_file}
             canDismiss={canDismiss}
-            dismissing={dismissing}
-            dismissed={dismissed}
-            onDismiss={(finding, message) => {
-              void dismissFinding(finding, message)
-            }}
           />
         )}
       </section>

@@ -6,7 +6,7 @@ import {
   screen,
   waitFor,
 } from "@testing-library/react"
-import { MemoryRouter, Route, Routes } from "react-router"
+import { MemoryRouter, Route, Routes, useNavigate } from "react-router"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 import { AuthProvider } from "@/lib/auth/auth-context"
@@ -172,6 +172,14 @@ function stubApi(
     if (url === "/api/reviews/42") {
       return Promise.resolve(jsonResponse(options.detail ?? detail()))
     }
+    if (url === "/api/reviews/43/findings") {
+      return Promise.resolve(jsonResponse(findingsResponse()))
+    }
+    if (url === "/api/reviews/43") {
+      return Promise.resolve(
+        jsonResponse(detail("passed", { id: 43, pr_number: 8 }))
+      )
+    }
     if (url.startsWith("/api/reviews?")) {
       if (options.reviews) {
         return Promise.resolve(jsonResponse(options.reviews))
@@ -242,6 +250,29 @@ function renderDetail(client = newClient(), path = "/app/reviews/42") {
     </QueryClientProvider>
   )
   return client
+}
+
+function renderDetailNavigable(client = newClient(), path = "/app/reviews/42") {
+  const navigateRef: { current: ((to: string) => void) | null } = {
+    current: null,
+  }
+  function CaptureNavigate() {
+    navigateRef.current = useNavigate()
+    return null
+  }
+  render(
+    <QueryClientProvider client={client}>
+      <AuthProvider>
+        <MemoryRouter initialEntries={[path]}>
+          <CaptureNavigate />
+          <Routes>
+            <Route path="/app/reviews/:id" element={<ReviewDetailRoute />} />
+          </Routes>
+        </MemoryRouter>
+      </AuthProvider>
+    </QueryClientProvider>
+  )
+  return (to: string) => navigateRef.current?.(to)
 }
 
 async function chooseFilter(trigger: string, option: string) {
@@ -492,6 +523,33 @@ describe("review detail", () => {
       await screen.findByRole("button", { name: "Dismiss hardcoded-key" })
     ).toBeDisabled()
     expect(screen.getByText("Dismissed")).toBeInTheDocument()
+  })
+
+  it("clears dismissed state when navigating to another review", async () => {
+    stubApi({ role: "maintainer" })
+    const client = newClient()
+    client.setQueryData(queryKeys.review(43), detail("passed", { id: 43, pr_number: 8 }))
+    client.setQueryData(queryKeys.reviewFindings(43), findingsResponse())
+    const navigate = renderDetailNavigable(client)
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Dismiss hardcoded-key" })
+    )
+    fireEvent.click(await screen.findByRole("button", { name: "Confirm" }))
+
+    expect(await screen.findByText("Dismissed")).toBeInTheDocument()
+
+    navigate("/app/reviews/43")
+
+    expect(
+      await screen.findByRole("heading", { name: "#8 Harden auth" })
+    ).toBeInTheDocument()
+    await waitFor(() => {
+      expect(screen.queryByText("Dismissed")).toBeNull()
+    })
+    expect(
+      screen.getByRole("button", { name: "Dismiss hardcoded-key" })
+    ).toBeEnabled()
   })
 
   it.each(["abc", "-1", "1.5", "99999999999999999999"])(
