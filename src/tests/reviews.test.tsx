@@ -11,6 +11,7 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 
 import { AuthProvider } from "@/lib/auth/auth-context"
 import {
+  queryKeys,
   reviewQueryOptions,
   reviewsQueryOptions,
 } from "@/lib/api/queries"
@@ -108,6 +109,23 @@ function detail(status = "passed", overrides: Record<string, unknown> = {}) {
   }
 }
 
+function findingsResponse(items = findings) {
+  const byFile: Record<string, typeof findings> = {}
+  for (const finding of items) {
+    const existing = byFile[finding.file_path]
+    if (existing) {
+      existing.push(finding)
+    } else {
+      byFile[finding.file_path] = [finding]
+    }
+  }
+  return {
+    review_id: 42,
+    findings_by_file: byFile,
+    total_findings: items.length,
+  }
+}
+
 function jsonResponse(body: unknown, init: ResponseInit = {}) {
   return new Response(JSON.stringify(body), {
     status: 200,
@@ -116,7 +134,14 @@ function jsonResponse(body: unknown, init: ResponseInit = {}) {
   })
 }
 
-function stubApi(options: { role?: string; detail?: object; reviews?: object } = {}) {
+function stubApi(
+  options: {
+    role?: string
+    detail?: object
+    findings?: object
+    reviews?: object
+  } = {}
+) {
   const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input)
     const method = init?.method ?? "GET"
@@ -138,6 +163,11 @@ function stubApi(options: { role?: string; detail?: object; reviews?: object } =
     }
     if (url === "/api/reviews/dismiss" && method === "POST") {
       return Promise.resolve(jsonResponse({ status: "ok" }))
+    }
+    if (url === "/api/reviews/42/findings") {
+      return Promise.resolve(
+        jsonResponse(options.findings ?? findingsResponse())
+      )
     }
     if (url === "/api/reviews/42") {
       return Promise.resolve(jsonResponse(options.detail ?? detail()))
@@ -179,6 +209,13 @@ function newClient() {
   return new QueryClient({ defaultOptions: { queries: { retry: false } } })
 }
 
+function lastReviewsUrl(fetchMock: ReturnType<typeof stubApi>) {
+  const urls = fetchMock.mock.calls
+    .map(([input]) => String(input))
+    .filter((url) => url.startsWith("/api/reviews?"))
+  return urls.at(-1) ?? ""
+}
+
 function renderReviews(client = newClient()) {
   render(
     <QueryClientProvider client={client}>
@@ -192,11 +229,11 @@ function renderReviews(client = newClient()) {
   return client
 }
 
-function renderDetail(client = newClient()) {
+function renderDetail(client = newClient(), path = "/app/reviews/42") {
   render(
     <QueryClientProvider client={client}>
       <AuthProvider>
-        <MemoryRouter initialEntries={["/app/reviews/42"]}>
+        <MemoryRouter initialEntries={[path]}>
           <Routes>
             <Route path="/app/reviews/:id" element={<ReviewDetailRoute />} />
           </Routes>
@@ -205,6 +242,13 @@ function renderDetail(client = newClient()) {
     </QueryClientProvider>
   )
   return client
+}
+
+async function chooseFilter(trigger: string, option: string) {
+  fireEvent.mouseDown(screen.getByRole("combobox", { name: trigger }))
+  const item = await screen.findByRole("option", { name: option })
+  fireEvent.pointerDown(item)
+  fireEvent.click(item)
 }
 
 afterEach(() => {
@@ -251,6 +295,41 @@ describe("reviews list", () => {
 
     expect(await screen.findByText("No reviews")).toBeInTheDocument()
   })
+
+  it("drives the repo and status filters into the query", async () => {
+    const fetchMock = stubApi()
+    renderReviews()
+
+    expect(await screen.findByRole("link", { name: "#7" })).toBeInTheDocument()
+
+    await chooseFilter("Filter by repository", "acme/web")
+    await waitFor(() => {
+      expect(lastReviewsUrl(fetchMock)).toContain("repo_id=1")
+    })
+
+    await chooseFilter("Filter by status", "failed")
+    await waitFor(() => {
+      const url = lastReviewsUrl(fetchMock)
+      expect(url).toContain("repo_id=1")
+      expect(url).toContain("status=failed")
+      expect(url).toContain("offset=0")
+    })
+  })
+
+  it("distinguishes no reviews from no matches and clears filters", async () => {
+    stubApi({
+      reviews: { reviews: [], total: 0, total_pages: 0, limit: 20, offset: 0 },
+    })
+    renderReviews()
+
+    expect(await screen.findByText("No reviews")).toBeInTheDocument()
+
+    await chooseFilter("Filter by repository", "acme/web")
+    expect(await screen.findByText("No matching reviews")).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "Clear filters" }))
+    expect(await screen.findByText("No reviews")).toBeInTheDocument()
+  })
 })
 
 describe("review detail", () => {
@@ -285,25 +364,38 @@ describe("review detail", () => {
     ).toBeInTheDocument()
   })
 
-  it("groups findings under their file", async () => {
+  it("renders the server findings grouped by file", async () => {
     stubApi()
     renderDetail()
 
     expect(await screen.findByText("src/auth.rs")).toBeInTheDocument()
     expect(screen.getByText("src/db.rs")).toBeInTheDocument()
     expect(screen.getByText("Hardcoded API key")).toBeInTheDocument()
-    expect(screen.getByText("Query built from user input")).toBeInTheDocument()
+    expect(screen.queryByText("Query built from user input")).toBeNull()
+
+    fireEvent.click(screen.getByRole("button", { name: /src\/db\.rs/ }))
+    expect(
+      await screen.findByText("Query built from user input")
+    ).toBeInTheDocument()
     expect(screen.getByText(/Suggested fix:/)).toBeInTheDocument()
     expect(screen.getByText(/Rationale:/)).toBeInTheDocument()
+  })
+
+  it("shows an empty state when the review has no findings", async () => {
+    stubApi({
+      findings: { review_id: 42, findings_by_file: {}, total_findings: 0 },
+    })
+    renderDetail()
+
+    expect(await screen.findByText("No findings")).toBeInTheDocument()
   })
 
   it("shows a skeleton while a review is running", async () => {
     stubApi({ detail: detail("running") })
     renderDetail()
 
-    expect(
-      await screen.findByText(/Review in progress/)
-    ).toBeInTheDocument()
+    expect(await screen.findByText(/Review in progress/)).toBeInTheDocument()
+    expect(document.querySelector('[data-slot="skeleton"]')).not.toBeNull()
   })
 
   it("links to the SARIF export", async () => {
@@ -327,6 +419,7 @@ describe("review detail", () => {
     stubApi({ role: "maintainer" })
     renderDetail()
 
+    fireEvent.click(await screen.findByRole("button", { name: /src\/db\.rs/ }))
     const button = await screen.findByRole("button", {
       name: "Dismiss sql-injection",
     })
@@ -337,9 +430,10 @@ describe("review detail", () => {
     )
   })
 
-  it("sends fingerprint, file, detector, PR and message when dismissing", async () => {
+  it("sends the finding, message and invalidates review queries", async () => {
     const fetchMock = stubApi({ role: "maintainer" })
-    renderDetail()
+    const client = renderDetail()
+    const invalidate = vi.spyOn(client, "invalidateQueries")
 
     fireEvent.click(
       await screen.findByRole("button", { name: "Dismiss hardcoded-key" })
@@ -365,5 +459,28 @@ describe("review detail", () => {
         message: "Test fixture key",
       })
     })
+
+    await waitFor(() => {
+      expect(invalidate).toHaveBeenCalledWith({
+        queryKey: queryKeys.review(42),
+      })
+      expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.reviews })
+      expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.stats })
+    })
   })
+
+  it.each(["abc", "-1", "1.5", "99999999999999999999"])(
+    "renders not found for the unsafe review id %s without calling the API",
+    (value) => {
+      const fetchMock = stubApi()
+      renderDetail(newClient(), `/app/reviews/${value}`)
+
+      expect(screen.getByText("Page not found")).toBeInTheDocument()
+      expect(
+        fetchMock.mock.calls.some(([input]) =>
+          String(input).startsWith("/api/reviews/")
+        )
+      ).toBe(false)
+    }
+  )
 })

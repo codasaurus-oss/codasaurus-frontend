@@ -1,4 +1,4 @@
-import { queryOptions } from "@tanstack/react-query"
+import { keepPreviousData, queryOptions } from "@tanstack/react-query"
 
 import { apiFetch } from "@/lib/api/client"
 import {
@@ -8,6 +8,7 @@ import {
   repoListSchema,
   repoSchema,
   reviewDetailSchema,
+  reviewFindingsSchema,
   reviewsResponseSchema,
   setupStatusSchema,
   statsSchema,
@@ -102,6 +103,7 @@ const reviewsQueryOptions = (filters: ReviewFilters) =>
         reviewsResponseSchema
       )
     },
+    placeholderData: keepPreviousData,
   })
 
 const reviewQueryOptions = (id: number) =>
@@ -112,6 +114,13 @@ const reviewQueryOptions = (id: number) =>
       const status = query.state.data?.review.status
       return status === "pending" || status === "running" ? 10_000 : false
     },
+  })
+
+const reviewFindingsQueryOptions = (id: number) =>
+  queryOptions({
+    queryKey: queryKeys.reviewFindings(id),
+    queryFn: () =>
+      apiFetch(`/api/reviews/${id}/findings`, undefined, reviewFindingsSchema),
   })
 
 const healthQueryOptions = queryOptions({
@@ -128,6 +137,7 @@ export {
   queryKeys,
   repoQueryOptions,
   reposQueryOptions,
+  reviewFindingsQueryOptions,
   reviewQueryOptions,
   reviewsQueryOptions,
   setupStatusQueryOptions,

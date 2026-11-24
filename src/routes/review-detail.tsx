@@ -6,7 +6,11 @@ import { toast } from "sonner"
 import { EmptyState } from "@/components/common/empty-state"
 import { ErrorState } from "@/components/common/error-state"
 import { LoadingState } from "@/components/common/loading-state"
-import { StatusBadge } from "@/components/common/status-badge"
+import {
+  reviewStatusTone,
+  StatusBadge,
+} from "@/components/common/status-badge"
+import { NotFound } from "@/components/layout/not-found"
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -17,22 +21,21 @@ import {
 import { Skeleton } from "@/components/ui/skeleton"
 import { FindingsByFile } from "@/features/reviews/findings-by-file"
 import { apiFetch } from "@/lib/api/client"
-import { queryKeys, reviewQueryOptions } from "@/lib/api/queries"
+import {
+  queryKeys,
+  reviewFindingsQueryOptions,
+  reviewQueryOptions,
+} from "@/lib/api/queries"
 import type { Finding } from "@/lib/api/schemas"
 import { useAuth } from "@/lib/auth/auth-context"
 import { can } from "@/lib/auth/roles"
 
-function statusTone(status: string) {
-  if (status === "passed") {
-    return "success"
+function parseReviewId(raw: string | undefined) {
+  if (!raw) {
+    return null
   }
-  if (status === "failed" || status === "error") {
-    return "destructive"
-  }
-  if (status === "running") {
-    return "warning"
-  }
-  return "default"
+  const id = Number(raw)
+  return Number.isSafeInteger(id) && id > 0 ? id : null
 }
 
 function formatDuration(seconds: number | null) {
@@ -81,12 +84,24 @@ function Breakdown({ counts }: { counts: Record<string, number> }) {
 
 function ReviewDetailRoute() {
   const { id: rawId } = useParams()
-  const id = Number(rawId)
+  const id = parseReviewId(rawId)
   const { user } = useAuth()
   const queryClient = useQueryClient()
-  const reviewQuery = useQuery(reviewQueryOptions(id))
+  const reviewQuery = useQuery({
+    ...reviewQueryOptions(id ?? 0),
+    enabled: id !== null,
+  })
+  const reviewStatus = reviewQuery.data?.review.status
+  const active = reviewStatus === "pending" || reviewStatus === "running"
+  const findingsQuery = useQuery({
+    ...reviewFindingsQueryOptions(id ?? 0),
+    enabled: id !== null && reviewStatus !== undefined && !active,
+  })
   const [dismissing, setDismissing] = useState(false)
 
+  if (id === null) {
+    return <NotFound />
+  }
   if (reviewQuery.isPending) {
     return <LoadingState rows={8} />
   }
@@ -99,18 +114,21 @@ function ReviewDetailRoute() {
     )
   }
 
-  const { review, findings, summary } = reviewQuery.data
+  const { review, summary } = reviewQuery.data
   const repoName = review.repo_full_name || review.repo_name || "—"
-  const active = review.status === "pending" || review.status === "running"
   const canDismiss = can(user?.role, "maintain")
 
   async function dismissFinding(finding: Finding, message: string) {
+    const fingerprint = finding.fingerprint?.trim()
+    if (!fingerprint) {
+      return
+    }
     setDismissing(true)
     try {
       await apiFetch("/api/reviews/dismiss", {
         method: "POST",
         body: JSON.stringify({
-          fingerprint: finding.fingerprint ?? "",
+          fingerprint,
           detector: finding.detector,
           file: finding.file_path,
           pr_number: review.pr_number,
@@ -120,7 +138,7 @@ function ReviewDetailRoute() {
       })
       toast.success("Finding dismissed")
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: queryKeys.review(id) }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.review(review.id) }),
         queryClient.invalidateQueries({ queryKey: queryKeys.reviews }),
         queryClient.invalidateQueries({ queryKey: queryKeys.stats }),
       ])
@@ -155,7 +173,7 @@ function ReviewDetailRoute() {
               ) : null}
               <StatusBadge
                 label={review.status}
-                tone={statusTone(review.status)}
+                tone={reviewStatusTone(review.status)}
               />
             </div>
           </div>
@@ -206,14 +224,21 @@ function ReviewDetailRoute() {
         <h2 className="font-heading text-base font-medium">Findings</h2>
         {active ? (
           <Skeleton className="h-32 w-full" />
-        ) : findings.length === 0 ? (
+        ) : findingsQuery.isPending ? (
+          <LoadingState rows={3} />
+        ) : findingsQuery.isError ? (
+          <ErrorState
+            error={findingsQuery.error}
+            onRetry={() => void findingsQuery.refetch()}
+          />
+        ) : findingsQuery.data.total_findings === 0 ? (
           <EmptyState
             title="No findings"
             description="This review completed without any findings."
           />
         ) : (
           <FindingsByFile
-            findings={findings}
+            findingsByFile={findingsQuery.data.findings_by_file}
             canDismiss={canDismiss}
             dismissing={dismissing}
             onDismiss={(finding, message) => {

@@ -21,7 +21,7 @@ import { Textarea } from "@/components/ui/textarea"
 import type { Finding } from "@/lib/api/schemas"
 
 type FindingsByFileProps = {
-  findings: Finding[]
+  findingsByFile: Record<string, Finding[]>
   canDismiss: boolean
   dismissing: boolean
   onDismiss: (finding: Finding, message: string) => void
@@ -41,16 +41,13 @@ function FindingRow({
   finding,
   canDismiss,
   dismissing,
-  onDismiss,
+  onSelectDismiss,
 }: {
   finding: Finding
   canDismiss: boolean
   dismissing: boolean
-  onDismiss: (finding: Finding, message: string) => void
+  onSelectDismiss: (finding: Finding) => void
 }) {
-  const [message, setMessage] = useState("")
-  const [confirming, setConfirming] = useState(false)
-
   return (
     <TableRow>
       <TableCell className="align-top">
@@ -104,96 +101,97 @@ function FindingRow({
                 : "This finding has no fingerprint, so it cannot be dismissed."
             }
             aria-label={`Dismiss ${finding.rule_id ?? finding.detector}`}
-            onClick={() => setConfirming(true)}
+            onClick={() => onSelectDismiss(finding)}
           >
             Dismiss
           </Button>
         ) : null}
-        <ConfirmDialog
-          open={confirming}
-          onOpenChange={(open) => {
-            setConfirming(open)
-            if (!open) {
-              setMessage("")
-            }
-          }}
-          title="Dismiss finding"
-          description="Dismissing records this finding as a false positive in the learning store."
-          onConfirm={() => onDismiss(finding, message)}
-        >
-          <label className="flex flex-col gap-1 text-sm">
-            Message (optional)
-            <Textarea
-              value={message}
-              placeholder="Why is this a false positive?"
-              onChange={(event) => setMessage(event.target.value)}
-            />
-          </label>
-        </ConfirmDialog>
       </TableCell>
     </TableRow>
   )
 }
 
 function FindingsByFile({
-  findings,
+  findingsByFile,
   canDismiss,
   dismissing,
   onDismiss,
 }: FindingsByFileProps) {
-  const groups = new Map<string, Finding[]>()
-  for (const finding of findings) {
-    const existing = groups.get(finding.file_path)
-    if (existing) {
-      existing.push(finding)
-    } else {
-      groups.set(finding.file_path, [finding])
-    }
+  const [selected, setSelected] = useState<Finding | null>(null)
+  const [message, setMessage] = useState("")
+
+  function closeDialog() {
+    setSelected(null)
+    setMessage("")
   }
 
   return (
     <div className="flex flex-col gap-2">
-      {[...groups.entries()]
-        .sort(([left], [right]) => left.localeCompare(right))
-        .map(([file, fileFindings]) => (
-          <Collapsible
-            key={file}
-            defaultOpen
-            className="rounded-xl ring-1 ring-foreground/10"
-          >
-            <CollapsibleTrigger className="flex w-full items-center justify-between gap-2 p-3 text-left">
-              <span className="font-mono text-sm">{file}</span>
-              <span className="text-xs text-muted-foreground">
-                {fileFindings.length}{" "}
-                {fileFindings.length === 1 ? "finding" : "findings"}
-              </span>
-            </CollapsibleTrigger>
-            <CollapsibleContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Severity</TableHead>
-                    <TableHead>Detector</TableHead>
-                    <TableHead>Message</TableHead>
-                    <TableHead>Confidence</TableHead>
-                    <TableHead className="text-right">Action</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {fileFindings.map((finding) => (
-                    <FindingRow
-                      key={finding.id}
-                      finding={finding}
-                      canDismiss={canDismiss}
-                      dismissing={dismissing}
-                      onDismiss={onDismiss}
-                    />
-                  ))}
-                </TableBody>
-              </Table>
-            </CollapsibleContent>
-          </Collapsible>
-        ))}
+      {Object.entries(findingsByFile).map(([file, fileFindings], index) => (
+        <Collapsible
+          key={file}
+          defaultOpen={index === 0}
+          className="rounded-xl ring-1 ring-foreground/10"
+        >
+          <CollapsibleTrigger className="flex w-full items-center justify-between gap-2 p-3 text-left">
+            <span className="font-mono text-sm">{file}</span>
+            <span className="text-xs text-muted-foreground">
+              {fileFindings.length}{" "}
+              {fileFindings.length === 1 ? "finding" : "findings"}
+            </span>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Severity</TableHead>
+                  <TableHead>Detector</TableHead>
+                  <TableHead>Message</TableHead>
+                  <TableHead>Confidence</TableHead>
+                  <TableHead className="text-right">Action</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {fileFindings.map((finding) => (
+                  <FindingRow
+                    key={finding.id}
+                    finding={finding}
+                    canDismiss={canDismiss}
+                    dismissing={dismissing}
+                    onSelectDismiss={setSelected}
+                  />
+                ))}
+              </TableBody>
+            </Table>
+          </CollapsibleContent>
+        </Collapsible>
+      ))}
+
+      <ConfirmDialog
+        key={selected?.id ?? "none"}
+        open={selected !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            closeDialog()
+          }
+        }}
+        title="Dismiss finding"
+        description="Dismissing records this finding as a false positive in the learning store."
+        onConfirm={() => {
+          if (selected) {
+            onDismiss(selected, message)
+          }
+        }}
+      >
+        <label className="flex flex-col gap-1 text-sm">
+          Message (optional)
+          <Textarea
+            value={message}
+            placeholder="Why is this a false positive?"
+            onChange={(event) => setMessage(event.target.value)}
+          />
+        </label>
+      </ConfirmDialog>
     </div>
   )
 }

@@ -27,4 +27,17 @@ function StatusBadge({ label, tone = "default" }: StatusBadgeProps) {
   )
 }
 
-export { StatusBadge }
+function reviewStatusTone(status: string): StatusTone {
+  if (status === "passed") {
+    return "success"
+  }
+  if (status === "failed" || status === "error") {
+    return "destructive"
+  }
+  if (status === "running") {
+    return "warning"
+  }
+  return "default"
+}
+
+export { reviewStatusTone, StatusBadge }

@@ -5,8 +5,12 @@ import { Link } from "react-router"
 import { EmptyState } from "@/components/common/empty-state"
 import { ErrorState } from "@/components/common/error-state"
 import { LoadingState } from "@/components/common/loading-state"
-import { StatusBadge } from "@/components/common/status-badge"
+import {
+  reviewStatusTone,
+  StatusBadge,
+} from "@/components/common/status-badge"
 import { PageHeader } from "@/components/layout/page-header"
+import { Button } from "@/components/ui/button"
 import {
   Pagination,
   PaginationContent,
@@ -40,19 +44,6 @@ const statusItems = [
   ...statuses.map((status) => ({ label: status, value: status })),
 ]
 
-function statusTone(status: string) {
-  if (status === "passed") {
-    return "success"
-  }
-  if (status === "failed" || status === "error") {
-    return "destructive"
-  }
-  if (status === "running") {
-    return "warning"
-  }
-  return "default"
-}
-
 function formatTimestamp(value: string | null) {
   return value ? formatWhen(value) : "—"
 }
@@ -79,6 +70,13 @@ function ReviewsRoute() {
       value: String(repo.id),
     })),
   ]
+  const hasFilters = repoId !== undefined || status !== ""
+
+  function clearFilters() {
+    setRepoId(undefined)
+    setStatus("")
+    setPage(1)
+  }
 
   let content
   if (reviews.isPending) {
@@ -91,7 +89,17 @@ function ReviewsRoute() {
       />
     )
   } else if (reviews.data.reviews.length === 0) {
-    content = (
+    content = hasFilters ? (
+      <EmptyState
+        title="No matching reviews"
+        description="No reviews match the selected repository and status filters."
+        action={
+          <Button variant="outline" onClick={clearFilters}>
+            Clear filters
+          </Button>
+        }
+      />
+    ) : (
       <EmptyState
         title="No reviews"
         description="Reviews appear here once a pull request is opened on a connected repository."
@@ -106,7 +114,6 @@ function ReviewsRoute() {
             <TableHead>Repository</TableHead>
             <TableHead>Author</TableHead>
             <TableHead>Status</TableHead>
-            <TableHead>Findings</TableHead>
             <TableHead>Started</TableHead>
             <TableHead>Completed</TableHead>
           </TableRow>
@@ -131,11 +138,8 @@ function ReviewsRoute() {
               <TableCell>
                 <StatusBadge
                   label={review.status}
-                  tone={statusTone(review.status)}
+                  tone={reviewStatusTone(review.status)}
                 />
-              </TableCell>
-              <TableCell className="tabular-nums">
-                {review.finding_count ?? "—"}
               </TableCell>
               <TableCell className="text-muted-foreground">
                 {formatTimestamp(review.started_at)}
