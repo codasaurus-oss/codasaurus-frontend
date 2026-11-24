@@ -18,15 +18,20 @@ const ThemeProviderContext = createContext<ThemeProviderState | undefined>(
 )
 
 function readStoredTheme(storageKey: string, fallback: Theme): Theme {
-  const stored = localStorage.getItem(storageKey)
-  return stored === "light" || stored === "dark" || stored === "system"
-    ? stored
-    : fallback
+  try {
+    const stored = localStorage.getItem(storageKey)
+    return stored === "light" || stored === "dark" || stored === "system"
+      ? stored
+      : fallback
+  } catch {
+    // Storage is blocked in some browser contexts; fall back to the default.
+    return fallback
+  }
 }
 
 function ThemeProvider({
   children,
-  defaultTheme = "light",
+  defaultTheme = "system",
   storageKey = "vite-ui-theme",
 }: ThemeProviderProps) {
   const [theme, setThemeState] = useState<Theme>(() =>
@@ -51,7 +56,11 @@ function ThemeProvider({
   }, [theme])
 
   const setTheme = (nextTheme: Theme) => {
-    localStorage.setItem(storageKey, nextTheme)
+    try {
+      localStorage.setItem(storageKey, nextTheme)
+    } catch {
+      // Storage is blocked; the choice still applies for this session.
+    }
     setThemeState(nextTheme)
   }
 

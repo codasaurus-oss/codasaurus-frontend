@@ -6,8 +6,8 @@ type StatusTone = "default" | "success" | "warning" | "destructive"
 
 const toneClasses: Record<StatusTone, string> = {
   default: "",
-  success: "border-chart-2/30 bg-chart-2/15 text-chart-2",
-  warning: "border-chart-4/30 bg-chart-4/15 text-chart-4",
+  success: "border-success/30 bg-success/10 text-success",
+  warning: "border-warning/30 bg-warning/10 text-warning",
   destructive: "",
 }
 

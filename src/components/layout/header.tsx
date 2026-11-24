@@ -71,6 +71,7 @@ function Header() {
           variant="outline"
           size="sm"
           className="text-muted-foreground"
+          aria-label="Search"
           onClick={() => setCommandOpen(true)}
         >
           <SearchIcon />
@@ -84,7 +85,7 @@ function Header() {
                 variant="ghost"
                 size="icon"
                 className="rounded-full"
-                aria-label="Open account menu"
+                aria-label="Theme"
               />
             }
           >
