@@ -1,5 +1,7 @@
+import { useQuery } from "@tanstack/react-query"
 import type { ReactNode } from "react"
 
+import { StatusBadge } from "@/components/common/status-badge"
 import { Header } from "@/components/layout/header"
 import { navigation } from "@/components/layout/navigation"
 import {
@@ -15,7 +17,9 @@ import {
   SidebarMenuItem,
   SidebarProvider,
 } from "@/components/ui/sidebar"
+import { Skeleton } from "@/components/ui/skeleton"
 import { TooltipProvider } from "@/components/ui/tooltip"
+import { setupStatusQueryOptions } from "@/lib/api/queries"
 
 function AppSidebar() {
   return (
@@ -66,6 +70,55 @@ function AppSidebar() {
   )
 }
 
+function HealthStrip() {
+  const setup = useQuery(setupStatusQueryOptions)
+  const rows = [
+    {
+      label: "Database",
+      ok: setup.data?.database,
+      okLabel: "Connected",
+      offLabel: "Unavailable",
+    },
+    {
+      label: "GitHub App",
+      ok: setup.data?.github,
+      okLabel: "Connected",
+      offLabel: "Not configured",
+    },
+    {
+      label: "LLM",
+      ok: setup.data?.llm,
+      okLabel: "Configured",
+      offLabel: "Not configured",
+    },
+  ]
+
+  return (
+    <footer
+      data-slot="health-strip"
+      className="flex flex-wrap items-center gap-x-4 gap-y-1 border-t px-4 py-2 text-xs text-muted-foreground"
+    >
+      {setup.isError ? (
+        <span>Status unavailable</span>
+      ) : setup.isPending ? (
+        rows.map((row) => (
+          <Skeleton key={row.label} className="h-4 w-28" />
+        ))
+      ) : (
+        rows.map((row) => (
+          <span key={row.label} className="flex items-center gap-1.5">
+            {row.label}
+            <StatusBadge
+              label={row.ok ? row.okLabel : row.offLabel}
+              tone={row.ok ? "success" : "warning"}
+            />
+          </span>
+        ))
+      )}
+    </footer>
+  )
+}
+
 function AppShell({ children }: { children: ReactNode }) {
   return (
     <TooltipProvider>
@@ -76,18 +129,7 @@ function AppShell({ children }: { children: ReactNode }) {
           <div className="flex flex-1 flex-col gap-4 p-4 md:p-6">
             {children}
           </div>
-          <footer
-            data-slot="health-strip"
-            className="flex flex-wrap items-center gap-x-4 gap-y-1 border-t px-4 py-2 text-xs text-muted-foreground"
-          >
-            {["Offline mode", "LLM", "GitHub"].map((label) => (
-              <span key={label} className="flex items-center gap-1.5">
-                <span className="size-1.5 rounded-full bg-muted-foreground/40" />
-                {label}
-                <span aria-hidden="true">—</span>
-              </span>
-            ))}
-          </footer>
+          <HealthStrip />
         </SidebarInset>
       </SidebarProvider>
     </TooltipProvider>
