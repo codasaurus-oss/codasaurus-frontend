@@ -355,6 +355,14 @@ const mcpServersResponseSchema = z
   })
   .passthrough()
 
+const mcpTestResultSchema = z
+  .object({
+    status: z.string(),
+    ok: z.boolean(),
+    tool_count: z.number(),
+  })
+  .passthrough()
+
 // GET /api/settings is a flat key → value map plus three synthetic offline-mode
 // fields. Every stored value is a string and secrets arrive already masked.
 const settingsMapSchema = z
@@ -509,6 +517,9 @@ const statsSchema = z
   .passthrough()
 
 type Role = z.infer<typeof roleSchema>
+type AuditEntry = z.infer<typeof auditEntrySchema>
+type LearningRule = z.infer<typeof learningRuleSchema>
+type McpServer = z.infer<typeof mcpServerSchema>
 type InviteInfo = z.infer<typeof inviteInfoSchema>
 type UserInfo = z.infer<typeof userInfoSchema>
 type MeResponse = z.infer<typeof meResponseSchema>
@@ -549,6 +560,7 @@ export {
   logoutResponseSchema,
   mcpServerSchema,
   mcpServersResponseSchema,
+  mcpTestResultSchema,
   meResponseSchema,
   oidcStatusSchema,
   publicUrlSchema,
@@ -572,12 +584,15 @@ export {
   usersResponseSchema,
 }
 export type {
+  AuditEntry,
   CreatedInvite,
   DatabaseStatus,
   Finding,
   Invite,
   InviteInfo,
+  LearningRule,
   LlmConfig,
+  McpServer,
   MeResponse,
   PublicUrl,
   Repo,

@@ -2,10 +2,13 @@ import { keepPreviousData, queryOptions } from "@tanstack/react-query"
 
 import { apiFetch } from "@/lib/api/client"
 import {
+  auditResponseSchema,
   githubSettingsSchema,
   healthResponseSchema,
   inviteInfoSchema,
   invitesResponseSchema,
+  learningRulesResponseSchema,
+  mcpServersResponseSchema,
   oidcStatusSchema,
   repoListSchema,
   repoSchema,
@@ -147,6 +150,43 @@ const invitesQueryOptions = queryOptions({
   staleTime: 30_000,
 })
 
+const auditQueryOptions = (filters: {
+  eventType?: string
+  limit?: number
+  offset?: number
+}) =>
+  queryOptions({
+    queryKey: queryKeys.auditList(filters),
+    queryFn: () => {
+      const params = new URLSearchParams()
+      params.set("limit", String(filters.limit ?? 50))
+      params.set("offset", String(filters.offset ?? 0))
+      if (filters.eventType) {
+        params.set("event_type", filters.eventType)
+      }
+      return apiFetch(
+        `/api/audit?${params.toString()}`,
+        undefined,
+        auditResponseSchema
+      )
+    },
+    placeholderData: keepPreviousData,
+  })
+
+const learningQueryOptions = queryOptions({
+  queryKey: queryKeys.learningRules,
+  queryFn: () =>
+    apiFetch("/api/learning/rules", undefined, learningRulesResponseSchema),
+  staleTime: 30_000,
+})
+
+const mcpServersQueryOptions = queryOptions({
+  queryKey: queryKeys.mcpServers,
+  queryFn: () =>
+    apiFetch("/api/mcp/servers", undefined, mcpServersResponseSchema),
+  staleTime: 30_000,
+})
+
 const settingsQueryOptions = queryOptions({
   queryKey: queryKeys.settings,
   queryFn: () => apiFetch("/api/settings", undefined, settingsMapSchema),
@@ -161,10 +201,13 @@ const githubSettingsQueryOptions = queryOptions({
 })
 
 export {
+  auditQueryOptions,
   githubSettingsQueryOptions,
   healthQueryOptions,
   inviteQueryOptions,
   invitesQueryOptions,
+  learningQueryOptions,
+  mcpServersQueryOptions,
   oidcStatusQueryOptions,
   queryKeys,
   repoQueryOptions,
