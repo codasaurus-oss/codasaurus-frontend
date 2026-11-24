@@ -17,9 +17,8 @@ import {
   SidebarMenuItem,
   SidebarProvider,
 } from "@/components/ui/sidebar"
-import { Skeleton } from "@/components/ui/skeleton"
 import { TooltipProvider } from "@/components/ui/tooltip"
-import { setupStatusQueryOptions } from "@/lib/api/queries"
+import { healthQueryOptions, setupStatusQueryOptions } from "@/lib/api/queries"
 
 function AppSidebar() {
   return (
@@ -72,26 +71,7 @@ function AppSidebar() {
 
 function HealthStrip() {
   const setup = useQuery(setupStatusQueryOptions)
-  const rows = [
-    {
-      label: "Database",
-      ok: setup.data?.database,
-      okLabel: "Connected",
-      offLabel: "Unavailable",
-    },
-    {
-      label: "GitHub App",
-      ok: setup.data?.github,
-      okLabel: "Connected",
-      offLabel: "Not configured",
-    },
-    {
-      label: "LLM",
-      ok: setup.data?.llm,
-      okLabel: "Configured",
-      offLabel: "Not configured",
-    },
-  ]
+  const health = useQuery(healthQueryOptions)
 
   return (
     <footer
@@ -100,21 +80,41 @@ function HealthStrip() {
     >
       {setup.isError ? (
         <span>Status unavailable</span>
-      ) : setup.isPending ? (
-        rows.map((row) => (
-          <Skeleton key={row.label} className="h-4 w-28" />
-        ))
-      ) : (
-        rows.map((row) => (
-          <span key={row.label} className="flex items-center gap-1.5">
-            {row.label}
+      ) : setup.data ? (
+        <>
+          <span className="flex items-center gap-1.5">
+            Database
             <StatusBadge
-              label={row.ok ? row.okLabel : row.offLabel}
-              tone={row.ok ? "success" : "warning"}
+              label={setup.data.database ? "Connected" : "Unavailable"}
+              tone={setup.data.database ? "success" : "warning"}
             />
           </span>
-        ))
-      )}
+          <span className="flex items-center gap-1.5">
+            GitHub App
+            <StatusBadge
+              label={setup.data.github ? "Configured" : "Not configured"}
+              tone={setup.data.github ? "success" : "warning"}
+            />
+          </span>
+          <span className="flex items-center gap-1.5">
+            LLM
+            <StatusBadge
+              label={setup.data.llm ? "Setup complete" : "Not configured"}
+            />
+          </span>
+          {health.data ? (
+            <span className="flex items-center gap-1.5">
+              Offline mode
+              <StatusBadge
+                label={
+                  health.data.offline_mode ? "Offline · Tier-1 only" : "Online"
+                }
+                tone={health.data.offline_mode ? "warning" : "default"}
+              />
+            </span>
+          ) : null}
+        </>
+      ) : null}
     </footer>
   )
 }

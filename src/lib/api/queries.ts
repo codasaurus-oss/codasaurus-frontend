@@ -2,6 +2,7 @@ import { queryOptions } from "@tanstack/react-query"
 
 import { apiFetch } from "@/lib/api/client"
 import {
+  healthResponseSchema,
   inviteInfoSchema,
   oidcStatusSchema,
   setupStatusSchema,
@@ -17,6 +18,7 @@ type ReviewFilters = {
 
 const queryKeys = {
   me: ["me"] as const,
+  health: ["health"] as const,
   oidcStatus: ["auth", "oidc-status"] as const,
   invite: (token: string) => ["invites", "detail", token] as const,
   setupStatus: ["setup", "status"] as const,
@@ -65,7 +67,14 @@ const statsQueryOptions = queryOptions({
   refetchInterval: 30_000,
 })
 
+const healthQueryOptions = queryOptions({
+  queryKey: queryKeys.health,
+  queryFn: () => apiFetch("/health", undefined, healthResponseSchema),
+  staleTime: 30_000,
+})
+
 export {
+  healthQueryOptions,
   inviteQueryOptions,
   oidcStatusQueryOptions,
   queryKeys,

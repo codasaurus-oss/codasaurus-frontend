@@ -3,8 +3,22 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { MemoryRouter } from "react-router"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
+import { AppShell } from "@/components/layout/app-shell"
 import { AuthProvider } from "@/lib/auth/auth-context"
+import { ThemeProvider } from "@/lib/theme/theme-provider"
 import DashboardRoute from "@/routes/dashboard"
+
+const health = {
+  status: "ok",
+  db: true,
+  data_dir: true,
+  ready: true,
+  version: "0.4.0",
+  egress_profile: "full",
+  offline_mode: false,
+  network: { llm: true, registries: true, osv: true },
+  note: "BYOK LLM and Tier-1 network checks allowed subject to SSRF policy.",
+}
 
 const setupStatus = {
   database: true,
@@ -72,6 +86,8 @@ function stubApi(options: {
   role?: string
   stats?: object
   setup?: object
+  health?: object
+  healthStatus?: number
 }) {
   const fetchMock = vi.fn((input: RequestInfo | URL, _init?: RequestInit) => {
     const url = String(input)
@@ -90,6 +106,14 @@ function stubApi(options: {
     }
     if (url === "/api/setup/status") {
       return Promise.resolve(jsonResponse(options.setup ?? setupStatus))
+    }
+    if (url === "/health") {
+      return Promise.resolve(
+        jsonResponse(
+          options.health ?? health,
+          options.healthStatus ? { status: options.healthStatus } : {}
+        )
+      )
     }
     if (url === "/api/stats") {
       return Promise.resolve(jsonResponse(options.stats ?? stats))
@@ -111,6 +135,30 @@ function renderDashboard() {
           <DashboardRoute />
         </MemoryRouter>
       </AuthProvider>
+    </QueryClientProvider>
+  )
+}
+
+function renderShell() {
+  vi.stubGlobal("matchMedia", () => ({
+    matches: false,
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+  }))
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  })
+  render(
+    <QueryClientProvider client={client}>
+      <ThemeProvider>
+        <AuthProvider>
+          <MemoryRouter>
+            <AppShell>
+              <div>shell content</div>
+            </AppShell>
+          </MemoryRouter>
+        </AuthProvider>
+      </ThemeProvider>
     </QueryClientProvider>
   )
 }
@@ -137,7 +185,7 @@ describe("dashboard", () => {
     renderDashboard()
 
     const link = await screen.findByRole("link", { name: "#7 Harden auth" })
-    expect(link).toHaveAttribute("href", "#/app/reviews/42")
+    expect(link).toHaveAttribute("href", "/app/reviews/42")
   })
 
   it("shows the empty state with sync and install actions for a maintainer", async () => {
@@ -182,7 +230,7 @@ describe("dashboard", () => {
     })
   })
 
-  it("hides sync from a viewer", async () => {
+  it("hides both empty-state actions for a viewer without an install URL", async () => {
     stubApi({
       role: "viewer",
       stats: { ...stats, recent_activity: [] },
@@ -194,11 +242,68 @@ describe("dashboard", () => {
     expect(screen.queryByRole("link", { name: "Install GitHub App" })).toBeNull()
   })
 
+  it("hides sync from a viewer but still offers the install link", async () => {
+    stubApi({
+      role: "viewer",
+      stats: { ...stats, recent_activity: [] },
+      setup: {
+        ...setupStatus,
+        github_install_url:
+          "https://github.com/apps/codasaurus/installations/new",
+      },
+    })
+    renderDashboard()
+
+    expect(await screen.findByText("No reviews yet")).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Sync repos" })).toBeNull()
+    expect(
+      screen.getByRole("link", { name: "Install GitHub App" })
+    ).toHaveAttribute(
+      "href",
+      "https://github.com/apps/codasaurus/installations/new"
+    )
+  })
+
   it("renders chart placeholders when analytics arrays are missing", async () => {
     stubApi({ stats: { ...stats, analytics: {} } })
     renderDashboard()
 
     expect(await screen.findByText("Reviews and findings")).toBeInTheDocument()
     expect(screen.getAllByText("No data yet.")).toHaveLength(3)
+  })
+
+  it("shows an error state when the health endpoint fails", async () => {
+    stubApi({ healthStatus: 503 })
+    renderDashboard()
+
+    expect(await screen.findByText("Something went wrong")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Try again" })).toBeInTheDocument()
+  })
+
+  it("renders a chart placeholder for an all-zero 14-day series", async () => {
+    const zeroDays = Array.from({ length: 14 }, (_, index) => ({
+      day: `2026-11-${String(index + 1).padStart(2, "0")}`,
+      reviews: 0,
+      findings: 0,
+    }))
+    stubApi({ stats: { ...stats, analytics: { reviews_by_day: zeroDays } } })
+    renderDashboard()
+
+    expect(await screen.findByText("Reviews and findings")).toBeInTheDocument()
+    expect(screen.getAllByText("No data yet.")).toHaveLength(3)
+  })
+})
+
+describe("app shell health", () => {
+  it("shows real offline mode and neutral LLM setup state", async () => {
+    stubApi({
+      setup: { ...setupStatus, llm: true },
+      health: { ...health, offline_mode: true, egress_profile: "offline" },
+    })
+    renderShell()
+
+    expect(await screen.findByText("Offline · Tier-1 only")).toBeInTheDocument()
+    expect(screen.getByText("Setup complete")).toBeInTheDocument()
+    expect(screen.getByText("Configured")).toBeInTheDocument()
   })
 })

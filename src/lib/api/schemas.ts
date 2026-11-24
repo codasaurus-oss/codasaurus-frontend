@@ -58,6 +58,27 @@ const setupResultSchema = z
   })
   .passthrough()
 
+// Public liveness payload from GET /health; `network` is the egress map.
+const healthResponseSchema = z
+  .object({
+    status: z.string(),
+    db: z.boolean(),
+    data_dir: z.boolean(),
+    ready: z.boolean(),
+    version: z.string(),
+    egress_profile: z.string(),
+    offline_mode: z.boolean(),
+    network: z
+      .object({
+        llm: z.boolean(),
+        registries: z.boolean(),
+        osv: z.boolean(),
+      })
+      .passthrough(),
+    note: z.string(),
+  })
+  .passthrough()
+
 const databaseStatusSchema = z
   .object({
     connected: z.boolean(),
@@ -440,9 +461,6 @@ const statsSchema = z
       .passthrough()
       .optional(),
     analytics: statsAnalyticsSchema.optional(),
-    offline_mode_effective: z.boolean().optional(),
-    offline_mode_source: z.string().optional(),
-    offline_mode_hint: z.string().optional(),
   })
   .passthrough()
 
@@ -471,6 +489,7 @@ export {
   databaseStatusSchema,
   findingSchema,
   githubUrlSchema,
+  healthResponseSchema,
   inviteInfoSchema,
   inviteSchema,
   invitesResponseSchema,

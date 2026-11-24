@@ -1,6 +1,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { GitPullRequestIcon } from "lucide-react"
 import { useState, type ReactNode } from "react"
+import { Link } from "react-router"
 import {
   Area,
   AreaChart,
@@ -40,6 +41,7 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty"
+import { Skeleton } from "@/components/ui/skeleton"
 import {
   Table,
   TableBody,
@@ -50,6 +52,7 @@ import {
 } from "@/components/ui/table"
 import { apiFetch } from "@/lib/api/client"
 import {
+  healthQueryOptions,
   queryKeys,
   setupStatusQueryOptions,
   statsQueryOptions,
@@ -195,13 +198,13 @@ function RecentActivity({
                     {row.repo || "Unknown repository"}
                   </TableCell>
                   <TableCell>
-                    <a
+                    <Link
                       className="hover:underline hover:underline-offset-4"
-                      href={`#/app/reviews/${row.id}`}
+                      to={`/app/reviews/${row.id}`}
                     >
                       #{row.pr_number}
                       {row.pr_title ? ` ${row.pr_title}` : ""}
-                    </a>
+                    </Link>
                   </TableCell>
                   <TableCell>
                     <StatusBadge
@@ -227,6 +230,7 @@ function DashboardRoute() {
   const queryClient = useQueryClient()
   const stats = useQuery(statsQueryOptions)
   const setup = useQuery(setupStatusQueryOptions)
+  const health = useQuery(healthQueryOptions)
   const [syncing, setSyncing] = useState(false)
 
   async function syncRepos() {
@@ -242,7 +246,10 @@ function DashboardRoute() {
           result.synced === 1 ? "repository" : "repositories"
         }`
       )
-      await queryClient.invalidateQueries({ queryKey: queryKeys.stats })
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.stats }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.repos }),
+      ])
     } catch (caught) {
       toast.error(
         caught instanceof Error ? caught.message : "Could not sync repositories."
@@ -277,6 +284,7 @@ function DashboardRoute() {
       ]
     : []
   const outcomeTotal = outcomeData.reduce((sum, row) => sum + row.value, 0)
+  const hasDayData = days.some((day) => day.reviews > 0 || day.findings > 0)
   const installUrl = setup.data?.github_install_url
   const canSync = can(user?.role, "maintain")
 
@@ -288,7 +296,7 @@ function DashboardRoute() {
       />
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <Kpi label="Total repositories" value={formatCount(data.total_repos)} />
+        <Kpi label="Active repositories" value={formatCount(data.total_repos)} />
         <Kpi
           label="Reviews today"
           value={formatCount(data.total_reviews_today)}
@@ -312,9 +320,7 @@ function DashboardRoute() {
             <CardDescription>Daily totals for the last 14 days.</CardDescription>
           </CardHeader>
           <CardContent>
-            {days.length === 0 ? (
-              <ChartEmpty />
-            ) : (
+            {hasDayData ? (
               <ChartContainer
                 config={activityConfig}
                 className="aspect-auto h-[220px] w-full"
@@ -345,6 +351,8 @@ function DashboardRoute() {
                   />
                 </AreaChart>
               </ChartContainer>
+            ) : (
+              <ChartEmpty />
             )}
           </CardContent>
         </Card>
@@ -441,17 +449,34 @@ function DashboardRoute() {
               <CardDescription>Which review tiers are available.</CardDescription>
             </CardHeader>
             <CardContent className="flex flex-col gap-2">
-              <StatRow label="Tier-1 detectors">
-                <StatusBadge label="Active" tone="success" />
-              </StatRow>
-              <StatRow label="LLM">
-                {setup.isPending ? (
-                  "…"
-                ) : (
+              {health.isError ? (
+                <ErrorState
+                  error={health.error}
+                  onRetry={() => void health.refetch()}
+                />
+              ) : (
+                <StatRow label="Offline mode">
+                  {health.data ? (
+                    <StatusBadge
+                      label={
+                        health.data.offline_mode
+                          ? "Offline · Tier-1 only"
+                          : "Online"
+                      }
+                      tone={health.data.offline_mode ? "warning" : "default"}
+                    />
+                  ) : (
+                    <Skeleton className="h-4 w-20" />
+                  )}
+                </StatRow>
+              )}
+              <StatRow label="LLM setup">
+                {setup.data ? (
                   <StatusBadge
-                    label={setup.data?.llm ? "Configured" : "Not configured"}
-                    tone={setup.data?.llm ? "success" : "warning"}
+                    label={setup.data.llm ? "Setup complete" : "Not configured"}
                   />
+                ) : (
+                  "—"
                 )}
               </StatRow>
               <StatRow label="LLM requests">
