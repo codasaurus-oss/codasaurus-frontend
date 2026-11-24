@@ -2,6 +2,7 @@ import { keepPreviousData, queryOptions } from "@tanstack/react-query"
 
 import { apiFetch } from "@/lib/api/client"
 import {
+  githubSettingsSchema,
   healthResponseSchema,
   inviteInfoSchema,
   oidcStatusSchema,
@@ -10,6 +11,7 @@ import {
   reviewDetailSchema,
   reviewFindingsSchema,
   reviewsResponseSchema,
+  settingsMapSchema,
   setupStatusSchema,
   statsSchema,
 } from "@/lib/api/schemas"
@@ -42,6 +44,7 @@ const queryKeys = {
   learningRules: ["learning", "rules"] as const,
   mcpServers: ["mcp", "servers"] as const,
   settings: ["settings"] as const,
+  githubSettings: ["settings", "github"] as const,
 }
 
 const oidcStatusQueryOptions = queryOptions({
@@ -130,7 +133,21 @@ const healthQueryOptions = queryOptions({
   refetchInterval: 30_000,
 })
 
+const settingsQueryOptions = queryOptions({
+  queryKey: queryKeys.settings,
+  queryFn: () => apiFetch("/api/settings", undefined, settingsMapSchema),
+  staleTime: 30_000,
+})
+
+const githubSettingsQueryOptions = queryOptions({
+  queryKey: queryKeys.githubSettings,
+  queryFn: () =>
+    apiFetch("/api/settings/github", undefined, githubSettingsSchema),
+  staleTime: 30_000,
+})
+
 export {
+  githubSettingsQueryOptions,
   healthQueryOptions,
   inviteQueryOptions,
   oidcStatusQueryOptions,
@@ -140,6 +157,7 @@ export {
   reviewFindingsQueryOptions,
   reviewQueryOptions,
   reviewsQueryOptions,
+  settingsQueryOptions,
   setupStatusQueryOptions,
   statsQueryOptions,
 }

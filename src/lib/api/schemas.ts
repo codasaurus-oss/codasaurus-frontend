@@ -355,6 +355,50 @@ const mcpServersResponseSchema = z
   })
   .passthrough()
 
+// GET /api/settings is a flat key → value map plus three synthetic offline-mode
+// fields. Every stored value is a string and secrets arrive already masked.
+const settingsMapSchema = z
+  .object({
+    offline_mode_effective: z.boolean().optional(),
+    offline_mode_source: z.string().optional(),
+    offline_mode_hint: z.string().optional(),
+  })
+  .catchall(z.string())
+
+const settingSaveSchema = z
+  .object({
+    status: z.string(),
+    key: z.string(),
+    restart_required: z.boolean().optional(),
+    skipped: z.string().optional(),
+    cleared: z.boolean().optional(),
+  })
+  .passthrough()
+
+const settingsActionResultSchema = z
+  .object({
+    status: z.string(),
+    message: z.string().nullish(),
+  })
+  .passthrough()
+
+const integrationTestSchema = z
+  .object({
+    status: z.string(),
+    ok: z.boolean().nullish(),
+    message: z.string().nullish(),
+  })
+  .passthrough()
+
+const githubSettingsSchema = z
+  .object({
+    app_id: z.string().nullish(),
+    app_name: z.string().nullish(),
+    slug: z.string().nullish(),
+    configured: z.boolean(),
+  })
+  .passthrough()
+
 const githubUrlSchema = z
   .object({
     url: z.string().nullable(),
@@ -481,6 +525,7 @@ type ReviewDetail = z.infer<typeof reviewDetailSchema>
 type Finding = z.infer<typeof findingSchema>
 type User = z.infer<typeof userSchema>
 type UsersResponse = z.infer<typeof usersResponseSchema>
+type SettingsMap = z.infer<typeof settingsMapSchema>
 
 export {
   auditEntrySchema,
@@ -488,8 +533,10 @@ export {
   createdInviteSchema,
   databaseStatusSchema,
   findingSchema,
+  githubSettingsSchema,
   githubUrlSchema,
   healthResponseSchema,
+  integrationTestSchema,
   inviteInfoSchema,
   inviteSchema,
   invitesResponseSchema,
@@ -510,6 +557,9 @@ export {
   reviewsResponseSchema,
   reviewSchema,
   roleSchema,
+  settingSaveSchema,
+  settingsActionResultSchema,
+  settingsMapSchema,
   setupResultSchema,
   setupStatusSchema,
   statsSchema,
@@ -531,6 +581,7 @@ export type {
   ReviewDetail,
   ReviewsResponse,
   Role,
+  SettingsMap,
   SetupResult,
   SetupStatus,
   SyncResult,

@@ -1,0 +1,406 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react"
+import { MemoryRouter } from "react-router"
+import { toast } from "sonner"
+import { afterEach, describe, expect, it, vi } from "vitest"
+
+import { settingsMapSchema } from "@/lib/api/schemas"
+import { AuthProvider } from "@/lib/auth/auth-context"
+import SettingsRoute from "@/routes/settings"
+
+vi.mock("sonner", () => ({
+  toast: { success: vi.fn(), error: vi.fn(), message: vi.fn() },
+}))
+
+const settings: Record<string, unknown> = {
+  public_url: "https://bots.example.com",
+  offline_mode: "false",
+  offline_mode_effective: false,
+  offline_mode_source: "db",
+  llm_provider: "litellm",
+  llm_api_key: "••••••••",
+  llm_model: "gpt-5",
+  queue_workers: "4",
+  max_concurrent_reviews: "8",
+  metrics_token: "••••••••",
+  jira_api_token: "••••••••",
+  github_app_id: "123",
+  github_app_name: "codasaurus",
+  github_app_slug: "codasaurus",
+  github_private_key: "••••••••",
+  github_webhook_secret: "••••••••",
+  // The backend omits hidden keys from GET /api/settings; if one leaks through
+  // the console still must not render it.
+  database_url: "postgres://user:pass@db/app",
+  llm_base_url: "http://localhost:4000",
+  allow_local_llm: "true",
+  openrouter_api_key: "sk-or-secret",
+}
+
+function jsonResponse(body: unknown, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { "Content-Type": "application/json" },
+  })
+}
+
+// Copied verbatim from ALLOWED_KEYS in codasaurus/src/api/settings.rs; the
+// console must render each of these exactly once and nothing writable besides.
+const ALLOWED_KEYS = [
+  "llm_provider",
+  "llm_api_key",
+  "llm_model",
+  "llm_model_cheap",
+  "llm_embedding_model",
+  "llm_daily_budget_usd",
+  "public_url",
+  "default_severity",
+  "review_strictness",
+  "max_warnings",
+  "max_blocking",
+  "forbidden_paths",
+  "request_reviewers",
+  "create_check_run",
+  "hallucinated_imports_enabled",
+  "phantom_deps_enabled",
+  "vulnerabilities_enabled",
+  "secrets_enabled",
+  "over_engineering_enabled",
+  "boilerplate_enabled",
+  "todo_leaks_enabled",
+  "stale_api_enabled",
+  "risky_patterns_enabled",
+  "graph_enabled",
+  "guidelines_enabled",
+  "iac_enabled",
+  "auto_labels_enabled",
+  "exclude_patterns",
+  "update_pr_description",
+  "custom_instructions",
+  "allow_auto_fix",
+  "auto_approve",
+  "pr_title_fix",
+  "offline_mode",
+  "audit_retention_days",
+  "queue_workers",
+  "max_concurrent_reviews",
+  "hsts",
+  "metrics_token",
+  "review_timeout_secs",
+  "max_inline_comments",
+  "max_reviewer_files",
+  "max_comment_bytes",
+  "max_llm_diff_chars",
+  "auto_improve_max_files",
+  "auto_improve_max_diff",
+  "insecure_cookies",
+  "secure_cookies",
+  "jira_base_url",
+  "jira_email",
+  "jira_api_token",
+  "linear_api_key",
+  "oidc_issuer",
+  "oidc_client_id",
+  "oidc_client_secret",
+  "oidc_redirect_uri",
+  "oidc_scopes",
+  "oidc_allow_open_join",
+  "oidc_allow_unverified_email",
+  "oidc_allow_public_client",
+]
+
+const TAB_NAMES = ["General", "GitHub", "LLM", "OIDC", "Tickets", "Advanced"]
+
+async function renderedSettingKeys() {
+  const seen: string[] = []
+  for (const name of TAB_NAMES) {
+    const tab = screen.getByRole("tab", { name })
+    fireEvent.click(tab)
+    await waitFor(() => expect(tab).toHaveAttribute("aria-selected", "true"))
+    const ids = Array.from(
+      document.querySelectorAll('[id^="setting-"]'),
+      (element) => element.id.slice("setting-".length)
+    )
+    seen.push(...ids)
+    expect(screen.queryByText("postgres://user:pass@db/app")).toBeNull()
+  }
+  return seen
+}
+
+function stubApi(options: { role?: string; settings?: Record<string, unknown> } = {}) {
+  const role = options.role ?? "owner"
+  const values = options.settings ?? settings
+  const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+    const url = String(input)
+    const method = init?.method ?? "GET"
+    if (url === "/api/auth/me") {
+      return Promise.resolve(
+        jsonResponse({
+          authenticated: true,
+          user: {
+            email: `${role}@example.com`,
+            role,
+            auth_provider: "local",
+            is_bootstrap: false,
+          },
+        })
+      )
+    }
+    if (url === "/api/settings" && method === "GET") {
+      return Promise.resolve(jsonResponse(values))
+    }
+    if (url === "/api/settings/github" && method === "GET") {
+      return Promise.resolve(
+        jsonResponse({
+          app_id: "123",
+          app_name: "codasaurus",
+          slug: "codasaurus",
+          configured: true,
+        })
+      )
+    }
+    if (url.startsWith("/api/settings/") && method === "PUT") {
+      const key = url.slice("/api/settings/".length)
+      return Promise.resolve(
+        jsonResponse({
+          status: "ok",
+          key,
+          restart_required: key === "queue_workers",
+        })
+      )
+    }
+    if (url === "/api/settings/jira/test") {
+      return Promise.resolve(
+        jsonResponse({ status: "ok", ok: true, message: "Connected as Ada" })
+      )
+    }
+    if (url === "/api/settings/linear/test") {
+      return Promise.resolve(
+        jsonResponse({ error: "Linear rejected credentials (HTTP 401)" }, 400)
+      )
+    }
+    if (url.endsWith("/test") && method === "POST") {
+      return Promise.resolve(jsonResponse({ status: "ok", ok: true }))
+    }
+    if (method === "DELETE") {
+      return Promise.resolve(jsonResponse({ status: "ok", message: "Cleared" }))
+    }
+    return Promise.resolve(
+      jsonResponse({ error: `Unmatched request: ${method} ${url}` }, 500)
+    )
+  })
+  vi.stubGlobal("fetch", fetchMock)
+  return fetchMock
+}
+
+function renderSettings() {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  })
+  render(
+    <QueryClientProvider client={queryClient}>
+      <AuthProvider>
+        <MemoryRouter>
+          <SettingsRoute />
+        </MemoryRouter>
+      </AuthProvider>
+    </QueryClientProvider>
+  )
+  return queryClient
+}
+
+function putCalls(fetchMock: ReturnType<typeof stubApi>) {
+  return fetchMock.mock.calls.filter(([, init]) => init?.method === "PUT")
+}
+
+afterEach(() => {
+  cleanup()
+  vi.clearAllMocks()
+  vi.unstubAllGlobals()
+})
+
+describe("settings", () => {
+  it("parses the flat map and renders grouped values", async () => {
+    expect(
+      settingsMapSchema.parse({
+        public_url: "https://bots.example.com",
+        offline_mode_effective: true,
+        offline_mode_source: "env",
+      })
+    ).toEqual({
+      public_url: "https://bots.example.com",
+      offline_mode_effective: true,
+      offline_mode_source: "env",
+    })
+    expect(() => settingsMapSchema.parse({ public_url: 1 })).toThrow()
+
+    stubApi()
+    renderSettings()
+
+    expect(await screen.findByLabelText("Public URL")).toHaveValue(
+      "https://bots.example.com"
+    )
+    expect(screen.getByText("Effective")).toBeInTheDocument()
+    expect(screen.getByText("db")).toBeInTheDocument()
+  })
+
+  it("renders every allowed key exactly once and no hidden keys", async () => {
+    stubApi()
+    renderSettings()
+
+    await screen.findByLabelText("Public URL")
+    const seen = await renderedSettingKeys()
+
+    expect(seen).toHaveLength(ALLOWED_KEYS.length)
+    expect([...seen].sort()).toEqual([...ALLOWED_KEYS].sort())
+    for (const key of [
+      "database_url",
+      "llm_base_url",
+      "allow_local_llm",
+      "openrouter_api_key",
+      "github_private_key",
+      "github_webhook_secret",
+    ]) {
+      expect(document.querySelector(`#setting-${key}`)).toBeNull()
+      expect(screen.queryByText(key)).toBeNull()
+    }
+  })
+
+  it("never submits a masked secret, only a replacement", async () => {
+    const fetchMock = stubApi()
+    renderSettings()
+
+    await screen.findByLabelText("Public URL")
+    fireEvent.click(screen.getByRole("tab", { name: "LLM" }))
+
+    const input = await screen.findByLabelText("API key")
+    expect(input).toHaveValue("")
+    const replace = screen.getByRole("button", { name: "Replace API key" })
+    expect(replace).toBeDisabled()
+    fireEvent.click(replace)
+    expect(putCalls(fetchMock)).toHaveLength(0)
+
+    fireEvent.change(input, { target: { value: "sk-live-123" } })
+    fireEvent.click(screen.getByRole("button", { name: "Replace API key" }))
+
+    await waitFor(() => {
+      const [put] = putCalls(fetchMock)
+      expect(put).toBeDefined()
+      expect(String(put?.[0])).toBe("/api/settings/llm_api_key")
+      expect(JSON.parse(String(put?.[1]?.body))).toEqual({
+        value: "sk-live-123",
+      })
+    })
+    expect(JSON.stringify(putCalls(fetchMock))).not.toContain("•")
+  })
+
+  it("clears only the metrics token with an empty value", async () => {
+    const fetchMock = stubApi()
+    renderSettings()
+
+    await screen.findByLabelText("Public URL")
+    fireEvent.click(screen.getByRole("tab", { name: "Advanced" }))
+
+    fireEvent.click(await screen.findByRole("button", { name: "Clear Metrics token" }))
+
+    await waitFor(() => {
+      const [put] = putCalls(fetchMock)
+      expect(put).toBeDefined()
+      expect(String(put?.[0])).toBe("/api/settings/metrics_token")
+      expect(JSON.parse(String(put?.[1]?.body))).toEqual({ value: "" })
+    })
+  })
+
+  it("keeps a restart alert visible across tabs", async () => {
+    const fetchMock = stubApi()
+    renderSettings()
+
+    await screen.findByLabelText("Public URL")
+    fireEvent.click(screen.getByRole("tab", { name: "Advanced" }))
+
+    const workers = await screen.findByLabelText("Queue workers")
+    fireEvent.change(workers, { target: { value: "6" } })
+    fireEvent.click(screen.getByRole("button", { name: "Save Queue workers" }))
+
+    await waitFor(() => {
+      const [put] = putCalls(fetchMock)
+      expect(JSON.parse(String(put?.[1]?.body))).toEqual({ value: "6" })
+    })
+    expect(await screen.findByText("Restart required")).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("tab", { name: "General" }))
+    fireEvent.click(screen.getByRole("tab", { name: "Advanced" }))
+    expect(screen.getByText("Restart required")).toBeInTheDocument()
+  })
+
+  it("renders integration test success and failure inline", async () => {
+    stubApi()
+    renderSettings()
+
+    await screen.findByLabelText("Public URL")
+    fireEvent.click(screen.getByRole("tab", { name: "Tickets" }))
+
+    fireEvent.click(await screen.findByRole("button", { name: "Test Jira" }))
+    expect(await screen.findByText("Connected")).toBeInTheDocument()
+    expect(screen.getByText("Connected as Ada")).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "Test Linear" }))
+    expect(await screen.findByText("Connection failed")).toBeInTheDocument()
+    expect(
+      screen.getByText("Linear rejected credentials (HTTP 401)")
+    ).toBeInTheDocument()
+  })
+
+  it("confirms before deleting stored config", async () => {
+    const fetchMock = stubApi()
+    renderSettings()
+
+    await screen.findByLabelText("Public URL")
+    fireEvent.click(screen.getByRole("tab", { name: "GitHub" }))
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Clear GitHub config" })
+    )
+    expect(
+      fetchMock.mock.calls.filter(([, init]) => init?.method === "DELETE")
+    ).toHaveLength(0)
+    expect(
+      await screen.findByText("Clear GitHub App config")
+    ).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "Delete" }))
+
+    await waitFor(() => {
+      const deletes = fetchMock.mock.calls.filter(
+        ([, init]) => init?.method === "DELETE"
+      )
+      expect(deletes).toHaveLength(1)
+      expect(String(deletes[0]?.[0])).toBe("/api/settings/github")
+    })
+    expect(toast.success).toHaveBeenCalledWith("Cleared")
+  })
+
+  it.each(["viewer", "maintainer"])(
+    "shows the 403 state to a %s",
+    async (role) => {
+      const fetchMock = stubApi({ role })
+      renderSettings()
+
+      expect(
+        await screen.findByText("Only workspace owners can manage settings.")
+      ).toBeInTheDocument()
+      expect(screen.getByText("Something went wrong")).toBeInTheDocument()
+      expect(
+        fetchMock.mock.calls.some(
+          ([input]) => String(input) === "/api/settings"
+        )
+      ).toBe(false)
+    }
+  )
+})
