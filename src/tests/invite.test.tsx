@@ -88,7 +88,7 @@ describe("invite route", () => {
     renderInvite(newClient())
 
     const email = await screen.findByLabelText("Email")
-    expect(email).toBeDisabled()
+    expect(email).toHaveAttribute("readonly")
     expect(email).toHaveValue("locked@example.com")
     expect(screen.getByText("owner")).toBeInTheDocument()
   })
@@ -154,6 +154,36 @@ describe("invite route", () => {
 
     expect(
       await screen.findByText("Password must not be the same as your email")
+    ).toBeInTheDocument()
+  })
+
+  it("shows a retry-after message when accept is rate limited", async () => {
+    stubInviteFetch(
+      jsonResponse({
+        email: "locked@example.com",
+        role: "owner",
+        expires_at: expiresAt,
+        email_locked: true,
+      }),
+      (url) =>
+        url.includes("/accept")
+          ? jsonResponse(
+              { error: "Too many attempts. Try again in 15 minutes." },
+              { status: 429, headers: { "Retry-After": "900" } }
+            )
+          : undefined
+    )
+    renderInvite(newClient())
+
+    fireEvent.change(await screen.findByLabelText("Password"), {
+      target: { value: "a-very-good-password" },
+    })
+    fireEvent.click(screen.getByRole("button", { name: "Accept invite" }))
+
+    expect(
+      await screen.findByText(
+        "Too many attempts. Try again in 15 minutes. Please try again shortly."
+      )
     ).toBeInTheDocument()
   })
 

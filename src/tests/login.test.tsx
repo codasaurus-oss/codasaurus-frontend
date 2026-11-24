@@ -144,7 +144,9 @@ describe("login route", () => {
     fireEvent.click(screen.getByRole("button", { name: "Sign in" }))
 
     expect(
-      await screen.findByText("Too many attempts. Try again in 60 seconds.")
+      await screen.findByText(
+        "Too many attempts. Try again in 15 minutes. Please try again shortly."
+      )
     ).toBeInTheDocument()
   })
 

@@ -1,7 +1,12 @@
 import { queryOptions } from "@tanstack/react-query"
 
 import { apiFetch } from "@/lib/api/client"
-import { oidcStatusSchema, setupStatusSchema, statsSchema } from "@/lib/api/schemas"
+import {
+  inviteInfoSchema,
+  oidcStatusSchema,
+  setupStatusSchema,
+  statsSchema,
+} from "@/lib/api/schemas"
 
 type ReviewFilters = {
   repoId?: number
@@ -38,6 +43,15 @@ const oidcStatusQueryOptions = queryOptions({
   staleTime: 300_000,
 })
 
+const inviteQueryOptions = (token: string) =>
+  queryOptions({
+    queryKey: queryKeys.invite(token),
+    queryFn: () =>
+      apiFetch(`/api/auth/invite/${token}`, undefined, inviteInfoSchema),
+    enabled: Boolean(token),
+    retry: false,
+  })
+
 const setupStatusQueryOptions = queryOptions({
   queryKey: queryKeys.setupStatus,
   queryFn: () => apiFetch("/api/setup/status", undefined, setupStatusSchema),
@@ -52,6 +66,7 @@ const statsQueryOptions = queryOptions({
 })
 
 export {
+  inviteQueryOptions,
   oidcStatusQueryOptions,
   queryKeys,
   setupStatusQueryOptions,

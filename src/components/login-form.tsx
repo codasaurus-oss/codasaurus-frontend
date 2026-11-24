@@ -37,10 +37,9 @@ type LoginValues = z.infer<typeof loginSchema>
 
 function loginErrorMessage(error: unknown) {
   if (error instanceof ApiError) {
-    if (error.status === 429 && error.retryAfter) {
-      return `Too many attempts. Try again in ${error.retryAfter} seconds.`
-    }
-    return error.message
+    return error.status === 429
+      ? `${error.message} Please try again shortly.`
+      : error.message
   }
   return error instanceof Error ? error.message : "Could not sign in."
 }

@@ -29,9 +29,20 @@ import {
 import { Input } from "@/components/ui/input"
 import { apiFetch } from "@/lib/api/client"
 import { ApiError } from "@/lib/api/errors"
-import { queryKeys } from "@/lib/api/queries"
-import { inviteInfoSchema, type InviteInfo } from "@/lib/api/schemas"
+import { inviteQueryOptions } from "@/lib/api/queries"
+import type { InviteInfo } from "@/lib/api/schemas"
 import { useAuth } from "@/lib/auth/auth-context"
+
+function acceptErrorMessage(error: unknown) {
+  if (error instanceof ApiError) {
+    return error.status === 429
+      ? `${error.message} Please try again shortly.`
+      : error.message
+  }
+  return error instanceof Error
+    ? error.message
+    : "Could not accept the invite."
+}
 
 function acceptSchema(invite: InviteInfo) {
   return z
@@ -108,9 +119,7 @@ function AcceptInviteForm({
       await refresh()
       await navigate("/app/dashboard", { replace: true })
     } catch (caught) {
-      setError(
-        caught instanceof Error ? caught.message : "Could not accept the invite."
-      )
+      setError(acceptErrorMessage(caught))
     }
   }
 
@@ -141,7 +150,7 @@ function AcceptInviteForm({
                 id="invite-email"
                 type="email"
                 autoComplete="email"
-                disabled={invite.email_locked}
+                readOnly={invite.email_locked}
                 aria-invalid={Boolean(errors.email)}
                 {...form.register("email")}
               />
@@ -180,12 +189,7 @@ function AcceptInviteForm({
 
 function InviteRoute() {
   const { token = "" } = useParams()
-  const invite = useQuery({
-    queryKey: queryKeys.invite(token),
-    queryFn: () =>
-      apiFetch(`/api/auth/invite/${token}`, undefined, inviteInfoSchema),
-    retry: false,
-  })
+  const invite = useQuery(inviteQueryOptions(token))
 
   let content
   if (invite.isPending) {
