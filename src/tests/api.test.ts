@@ -40,6 +40,7 @@ beforeEach(() => {
 })
 
 afterEach(() => {
+  vi.useRealTimers()
   setUnauthorizedHandler(null)
   vi.unstubAllGlobals()
 })
@@ -62,6 +63,35 @@ describe("apiFetch", () => {
     const init = fetchMock.mock.calls[0][1] as RequestInit
     expect(init.credentials).toBe("include")
     expect(new Headers(init.headers).get("Content-Type")).toBe("application/json")
+  })
+
+  it("honours a per-request timeout override without forwarding it", async () => {
+    vi.useFakeTimers()
+    const fetchMock = vi.fn(
+      (_input: RequestInfo | URL, init?: RequestInit) =>
+        new Promise<Response>((_resolve, reject) => {
+          init?.signal?.addEventListener("abort", () => {
+            reject(new DOMException("The operation was aborted.", "AbortError"))
+          })
+        })
+    )
+    vi.stubGlobal("fetch", fetchMock)
+
+    const pending = apiFetch("/api/repos/sync", {
+      method: "POST",
+      timeoutMs: 120_000,
+    }).catch((caught: unknown) => caught)
+
+    await vi.advanceTimersByTimeAsync(30_000)
+    const requestInit = fetchMock.mock.calls[0][1] as Record<string, unknown>
+    expect("timeoutMs" in requestInit).toBe(false)
+    expect((requestInit.signal as AbortSignal).aborted).toBe(false)
+
+    await vi.advanceTimersByTimeAsync(90_000)
+    const error = await pending
+    expect(error).toBeInstanceOf(ApiError)
+    expect((error as ApiError).status).toBe(0)
+    expect((error as ApiError).message).toBe("The request timed out. Try again.")
   })
 
   it("rejects a 401, calls the global handler and clears the query cache", async () => {

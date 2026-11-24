@@ -22,6 +22,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { apiFetch } from "@/lib/api/client"
 import { queryKeys, repoQueryOptions } from "@/lib/api/queries"
 import type { Repo } from "@/lib/api/schemas"
+import { formatWhen } from "@/lib/format"
 
 type RepoConfigDialogProps = {
   repoId: number
@@ -29,26 +30,28 @@ type RepoConfigDialogProps = {
   onOpenChange: (open: boolean) => void
 }
 
-// The backend stores the config string verbatim, so a non-empty value only has
-// to parse to an object; it is never re-serialized on the way back.
-function configErrorFor(text: string) {
+type ConfigCheck = { error: string | null; warning: string | null }
+
+// The backend stores the config string verbatim and accepts any JSON value, so
+// only a parse failure blocks saving; a non-object is a non-blocking warning.
+function checkConfig(text: string): ConfigCheck {
   if (text.trim() === "") {
-    return null
+    return { error: null, warning: null }
   }
   let parsed: unknown
   try {
     parsed = JSON.parse(text)
   } catch {
-    return "Config must be valid JSON."
+    return { error: "Config must be valid JSON.", warning: null }
   }
-  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
-    return "Config must be a JSON object."
+  const isPlainObject =
+    typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)
+  return {
+    error: null,
+    warning: isPlainObject
+      ? null
+      : "This is valid JSON but not an object.",
   }
-  return null
-}
-
-function formatWhen(value: string) {
-  return new Date(value).toLocaleString()
 }
 
 function Detail({ label, children }: { label: string; children: ReactNode }) {
@@ -62,21 +65,27 @@ function Detail({ label, children }: { label: string; children: ReactNode }) {
 
 function RepoEditor({
   repo,
+  active,
+  onActiveChange,
   onDeleted,
 }: {
   repo: Repo
+  active: boolean
+  onActiveChange: (active: boolean) => void
   onDeleted: () => void
 }) {
   const queryClient = useQueryClient()
   const [configText, setConfigText] = useState(repo.config_json ?? "")
-  const [active, setActive] = useState(repo.active)
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<unknown>(null)
   const [deleting, setDeleting] = useState(false)
   const [deleteError, setDeleteError] = useState<unknown>(null)
   const [confirmOpen, setConfirmOpen] = useState(false)
 
-  const configError = useMemo(() => configErrorFor(configText), [configText])
+  const { error: configError, warning: configWarning } = useMemo(
+    () => checkConfig(configText),
+    [configText]
+  )
 
   async function save() {
     if (configError) {
@@ -92,7 +101,6 @@ function RepoEditor({
       toast.success("Repository updated")
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: queryKeys.repos }),
-        queryClient.invalidateQueries({ queryKey: queryKeys.repo(repo.id) }),
         queryClient.invalidateQueries({ queryKey: queryKeys.stats }),
       ])
     } catch (caught) {
@@ -128,6 +136,7 @@ function RepoEditor({
         <Textarea
           id="repo-config-json"
           aria-label="Config JSON"
+          aria-describedby={configError ? "repo-config-error" : undefined}
           className="min-h-40 font-mono text-xs"
           spellCheck={false}
           value={configText}
@@ -135,12 +144,21 @@ function RepoEditor({
           onChange={(event) => setConfigText(event.target.value)}
         />
         {configError ? (
-          <p className="text-xs text-destructive">{configError}</p>
+          <p id="repo-config-error" role="alert" className="text-xs text-destructive">
+            {configError}
+          </p>
+        ) : null}
+        {configWarning ? (
+          <p className="text-xs text-warning">{configWarning}</p>
         ) : null}
       </div>
       <div className="flex items-center justify-between gap-2 px-4">
         <Label htmlFor="repo-active">Active</Label>
-        <Switch id="repo-active" checked={active} onCheckedChange={setActive} />
+        <Switch
+          id="repo-active"
+          checked={active}
+          onCheckedChange={onActiveChange}
+        />
       </div>
       {saveError ? (
         <div className="px-4">
@@ -186,7 +204,9 @@ function RepoConfigDialog({
   onOpenChange,
 }: RepoConfigDialogProps) {
   const repoQuery = useQuery(repoQueryOptions(repoId))
+  const [active, setActive] = useState<boolean | null>(null)
   const repo = repoQuery.data
+  const effectiveActive = active ?? repo?.active ?? false
 
   return (
     <Sheet
@@ -230,8 +250,8 @@ function RepoConfigDialog({
                 </Badge>
               </Detail>
               <Detail label="Status">
-                <Badge variant={repo.active ? "default" : "outline"}>
-                  {repo.active ? "Active" : "Paused"}
+                <Badge variant={effectiveActive ? "default" : "outline"}>
+                  {effectiveActive ? "Active" : "Paused"}
                 </Badge>
               </Detail>
               <Detail label="Installation">{repo.installation_id}</Detail>
@@ -242,6 +262,8 @@ function RepoConfigDialog({
               <RepoEditor
                 key={`${repo.id}:${repo.updated_at}`}
                 repo={repo}
+                active={effectiveActive}
+                onActiveChange={setActive}
                 onDeleted={() => onOpenChange(false)}
               />
             ) : null}

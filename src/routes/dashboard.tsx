@@ -60,6 +60,7 @@ import {
 import { statsSchema, syncResultSchema } from "@/lib/api/schemas"
 import { useAuth } from "@/lib/auth/auth-context"
 import { can } from "@/lib/auth/roles"
+import { formatWhen } from "@/lib/format"
 
 type Stats = z.infer<typeof statsSchema>
 
@@ -92,10 +93,6 @@ function formatUsd(value: number | null | undefined) {
 
 function formatRatio(value: number | null | undefined) {
   return typeof value === "number" ? value.toFixed(2) : "—"
-}
-
-function formatWhen(value: string) {
-  return new Date(value).toLocaleString()
 }
 
 function ChartEmpty() {

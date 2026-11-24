@@ -4,6 +4,8 @@ const TIMEOUT_MS = 30_000
 
 type Schema<T> = { parse: (value: unknown) => T }
 
+type ApiInit = RequestInit & { timeoutMs?: number }
+
 let unauthorizedHandler: (() => void) | null = null
 
 function setUnauthorizedHandler(handler: (() => void) | null) {
@@ -50,18 +52,19 @@ function retryAfterSeconds(response: Response) {
 
 async function apiFetch<T>(
   path: string,
-  init?: RequestInit,
+  init?: ApiInit,
   schema?: Schema<T>
 ): Promise<T> {
+  const { timeoutMs = TIMEOUT_MS, ...requestInit } = init ?? {}
   const controller = new AbortController()
-  const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS)
-  const headers = new Headers(init?.headers)
+  const timeout = setTimeout(() => controller.abort(), timeoutMs)
+  const headers = new Headers(requestInit.headers)
   headers.set("Content-Type", "application/json")
 
   let response: Response
   try {
     response = await fetch(path, {
-      ...init,
+      ...requestInit,
       credentials: "include",
       headers,
       signal: controller.signal,

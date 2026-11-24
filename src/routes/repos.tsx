@@ -35,10 +35,7 @@ import {
 import { syncResultSchema } from "@/lib/api/schemas"
 import { useAuth } from "@/lib/auth/auth-context"
 import { can } from "@/lib/auth/roles"
-
-function formatWhen(value: string) {
-  return new Date(value).toLocaleString()
-}
+import { formatWhen } from "@/lib/format"
 
 function ReposRoute() {
   const { user } = useAuth()
@@ -69,14 +66,20 @@ function ReposRoute() {
     try {
       const result = await apiFetch(
         "/api/repos/sync",
-        { method: "POST" },
+        { method: "POST", timeoutMs: 120_000 },
         syncResultSchema
       )
-      toast.success(
-        `Synced ${result.synced} ${
-          result.synced === 1 ? "repository" : "repositories"
-        }`
-      )
+      if (result.synced === 0) {
+        toast.success(
+          "No repositories were found. Install the GitHub App to connect one."
+        )
+      } else {
+        toast.success(
+          `Synced ${result.synced} ${
+            result.synced === 1 ? "repository" : "repositories"
+          }`
+        )
+      }
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: queryKeys.repos }),
         queryClient.invalidateQueries({ queryKey: queryKeys.stats }),
@@ -216,6 +219,7 @@ function ReposRoute() {
                       <Button
                         variant="ghost"
                         size="sm"
+                        aria-label={`${canMaintain ? "Edit" : "View"} ${repo.full_name}`}
                         onClick={() => setSelectedId(repo.id)}
                       >
                         {canMaintain ? "Edit" : "View"}

@@ -1,10 +1,22 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react"
 import { MemoryRouter } from "react-router"
+import { toast } from "sonner"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 import { AuthProvider } from "@/lib/auth/auth-context"
 import ReposRoute from "@/routes/repos"
+
+vi.mock("sonner", () => ({
+  toast: { success: vi.fn(), error: vi.fn() },
+}))
 
 const repo = {
   id: 1,
@@ -23,9 +35,9 @@ const repo = {
 
 const installUrl = "https://github.com/apps/codasaurus/installations/new"
 
-function jsonResponse(body: unknown) {
+function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
-    status: 200,
+    status,
     headers: { "Content-Type": "application/json" },
   })
 }
@@ -35,6 +47,8 @@ function stubApi(
     role?: string
     repos?: object[]
     installUrl?: string | null
+    syncStatus?: number
+    synced?: number
   } = {}
 ) {
   const rows = options.repos ?? [repo]
@@ -70,12 +84,27 @@ function stubApi(
       return Promise.resolve(jsonResponse(rows))
     }
     if (url === "/api/repos/sync" && method === "POST") {
-      return Promise.resolve(jsonResponse({ status: "ok", synced: 1 }))
+      if (options.syncStatus && options.syncStatus !== 200) {
+        return Promise.resolve(
+          jsonResponse({ error: "Forbidden" }, options.syncStatus)
+        )
+      }
+      return Promise.resolve(
+        jsonResponse({ status: "ok", synced: options.synced ?? 1 })
+      )
     }
     if (url === `/api/repos/${repo.id}` && method === "GET") {
       return Promise.resolve(jsonResponse(repo))
     }
-    return Promise.resolve(jsonResponse({ status: "ok" }))
+    if (
+      url === `/api/repos/${repo.id}` &&
+      (method === "PUT" || method === "DELETE")
+    ) {
+      return Promise.resolve(jsonResponse({ status: "ok" }))
+    }
+    return Promise.resolve(
+      jsonResponse({ error: `Unmatched request: ${method} ${url}` }, 500)
+    )
   })
   vi.stubGlobal("fetch", fetchMock)
   return fetchMock
@@ -99,6 +128,7 @@ function renderRepos(client?: QueryClient) {
 
 afterEach(() => {
   cleanup()
+  vi.clearAllMocks()
   vi.unstubAllGlobals()
 })
 
@@ -109,9 +139,11 @@ describe("repositories", () => {
 
     expect(await screen.findByText("acme/web")).toBeInTheDocument()
     expect(screen.queryByRole("button", { name: "Sync repos" })).toBeNull()
-    expect(screen.queryByRole("button", { name: "Edit" })).toBeNull()
+    expect(
+      screen.queryByRole("button", { name: "Edit acme/web" })
+    ).toBeNull()
 
-    fireEvent.click(screen.getByRole("button", { name: "View" }))
+    fireEvent.click(screen.getByRole("button", { name: "View acme/web" }))
 
     expect(await screen.findByText("Installation")).toBeInTheDocument()
     expect(screen.queryByLabelText("Config JSON")).toBeNull()
@@ -127,7 +159,7 @@ describe("repositories", () => {
       screen.getByRole("button", { name: "Sync repos" })
     ).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole("button", { name: "Edit" }))
+    fireEvent.click(screen.getByRole("button", { name: "Edit acme/web" }))
 
     expect(await screen.findByLabelText("Config JSON")).toBeInTheDocument()
     expect(
@@ -138,22 +170,22 @@ describe("repositories", () => {
     ).toBeInTheDocument()
   })
 
-  it("blocks saving a config that is not a JSON object", async () => {
+  it("blocks invalid JSON but allows non-object JSON with a warning", async () => {
     const fetchMock = stubApi({ role: "maintainer" })
     renderRepos()
 
-    fireEvent.click(await screen.findByRole("button", { name: "Edit" }))
+    fireEvent.click(await screen.findByRole("button", { name: "Edit acme/web" }))
     const editor = await screen.findByLabelText("Config JSON")
 
     fireEvent.change(editor, { target: { value: "{not json" } })
     expect(
       await screen.findByText("Config must be valid JSON.")
     ).toBeInTheDocument()
-
-    fireEvent.change(editor, { target: { value: "[]" } })
-    expect(
-      await screen.findByText("Config must be a JSON object.")
-    ).toBeInTheDocument()
+    expect(editor).toHaveAttribute("aria-describedby", "repo-config-error")
+    expect(screen.getByText("Config must be valid JSON.")).toHaveAttribute(
+      "role",
+      "alert"
+    )
 
     const save = screen.getByRole("button", { name: "Save changes" })
     expect(save).toBeDisabled()
@@ -165,6 +197,72 @@ describe("repositories", () => {
           String(input) === `/api/repos/${repo.id}` && init?.method === "PUT"
       )
       expect(put).toBeUndefined()
+    })
+
+    fireEvent.change(editor, { target: { value: "[]" } })
+    expect(
+      await screen.findByText("This is valid JSON but not an object.")
+    ).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Save changes" })).toBeEnabled()
+  })
+
+  it("sends the config text verbatim", async () => {
+    const fetchMock = stubApi({ role: "maintainer" })
+    renderRepos()
+
+    fireEvent.click(await screen.findByRole("button", { name: "Edit acme/web" }))
+    const editor = await screen.findByLabelText("Config JSON")
+
+    const pretty = '{\n  "max_findings": 10,\n  "severity_threshold": "high"\n}'
+    fireEvent.change(editor, { target: { value: pretty } })
+    fireEvent.click(screen.getByRole("button", { name: "Save changes" }))
+
+    await waitFor(() => {
+      const put = fetchMock.mock.calls.find(
+        ([input, init]) =>
+          String(input) === `/api/repos/${repo.id}` && init?.method === "PUT"
+      )
+      expect(put).toBeDefined()
+      expect(JSON.parse(String(put?.[1]?.body))).toEqual({
+        config_json: pretty,
+        active: true,
+      })
+    })
+  })
+
+  it("keeps the status badge in sync with the active toggle", async () => {
+    stubApi({ role: "maintainer" })
+    renderRepos()
+
+    fireEvent.click(await screen.findByRole("button", { name: "Edit acme/web" }))
+    const dialog = await screen.findByRole("dialog")
+    const toggle = await screen.findByRole("switch")
+
+    expect(within(dialog).queryByText("Paused")).toBeNull()
+    fireEvent.click(toggle)
+    expect(await within(dialog).findByText("Paused")).toBeInTheDocument()
+  })
+
+  it("renders an error state when sync is forbidden", async () => {
+    stubApi({ role: "maintainer", syncStatus: 403 })
+    renderRepos()
+
+    fireEvent.click(await screen.findByRole("button", { name: "Sync repos" }))
+
+    expect(await screen.findByText("Something went wrong")).toBeInTheDocument()
+    expect(screen.getByText("Forbidden")).toBeInTheDocument()
+  })
+
+  it("suggests installing the app when sync finds no repositories", async () => {
+    stubApi({ role: "maintainer", repos: [], synced: 0 })
+    renderRepos()
+
+    fireEvent.click(await screen.findByRole("button", { name: "Sync repos" }))
+
+    await waitFor(() => {
+      expect(toast.success).toHaveBeenCalledWith(
+        "No repositories were found. Install the GitHub App to connect one."
+      )
     })
   })
 
@@ -193,7 +291,7 @@ describe("repositories", () => {
     const fetchMock = stubApi({ role: "maintainer" })
     renderRepos()
 
-    fireEvent.click(await screen.findByRole("button", { name: "Edit" }))
+    fireEvent.click(await screen.findByRole("button", { name: "Edit acme/web" }))
     fireEvent.click(
       await screen.findByRole("button", { name: "Delete repository" })
     )
