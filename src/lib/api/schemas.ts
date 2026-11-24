@@ -7,7 +7,11 @@ const roleSchema = z.enum(["owner", "maintainer", "viewer"])
 const userInfoSchema = z
   .object({
     email: z.string(),
-    role: roleSchema,
+    // Old rows can still carry the pre-rename "admin" role.
+    role: z
+      .string()
+      .transform((role) => (role === "admin" ? "owner" : role))
+      .pipe(roleSchema),
     auth_provider: z.string().nullish(),
     is_bootstrap: z.boolean().default(false),
   })

@@ -2,7 +2,6 @@ import type { ReactNode } from "react"
 
 import { Header } from "@/components/layout/header"
 import { navigation } from "@/components/layout/navigation"
-import { Toaster } from "@/components/ui/sonner"
 import {
   Sidebar,
   SidebarContent,
@@ -17,7 +16,6 @@ import {
   SidebarProvider,
 } from "@/components/ui/sidebar"
 import { TooltipProvider } from "@/components/ui/tooltip"
-import { useTheme } from "@/lib/theme/theme-provider"
 
 function AppSidebar() {
   return (
@@ -69,8 +67,6 @@ function AppSidebar() {
 }
 
 function AppShell({ children }: { children: ReactNode }) {
-  const { theme } = useTheme()
-
   return (
     <TooltipProvider>
       <SidebarProvider defaultOpen={false}>
@@ -93,7 +89,6 @@ function AppShell({ children }: { children: ReactNode }) {
             ))}
           </footer>
         </SidebarInset>
-        <Toaster theme={theme} position="bottom-right" />
       </SidebarProvider>
     </TooltipProvider>
   )

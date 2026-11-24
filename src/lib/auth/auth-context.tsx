@@ -23,6 +23,15 @@ type AuthContextValue = {
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined)
 
+// Only transport failures and server faults mean the session is unknown; a
+// rejection means the session is genuinely absent.
+function isOutage(error: unknown) {
+  if (error instanceof TypeError) {
+    return true
+  }
+  return error instanceof ApiError && (error.status === 0 || error.status >= 500)
+}
+
 function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUserState] = useState<UserInfo | null>(null)
   const [status, setStatus] = useState<AuthStatus>("loading")
@@ -38,7 +47,7 @@ function AuthProvider({ children }: { children: ReactNode }) {
       const me = await apiFetch("/api/auth/me", undefined, meResponseSchema)
       setUser(me.authenticated ? me.user : null)
     } catch (error) {
-      if (error instanceof ApiError && error.status === 401) {
+      if (!isOutage(error)) {
         setUser(null)
         return
       }
