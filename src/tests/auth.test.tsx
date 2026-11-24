@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { cleanup, render, screen } from "@testing-library/react"
+import { MemoryRouter, Route, Routes } from "react-router"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 import { ErrorState } from "@/components/common/error-state"
@@ -7,6 +8,7 @@ import { apiFetch } from "@/lib/api/client"
 import { ApiError } from "@/lib/api/errors"
 import { AuthProvider, useAuth } from "@/lib/auth/auth-context"
 import { can } from "@/lib/auth/roles"
+import { RequireAuth } from "@/routes/router"
 
 function jsonResponse(body: unknown, init: ResponseInit = {}) {
   return new Response(JSON.stringify(body), {
@@ -97,5 +99,47 @@ describe("auth gating", () => {
     expect(
       screen.getByText("Insufficient permissions for this action")
     ).toBeInTheDocument()
+  })
+
+  it("offers a retry instead of the login screen when the session probe fails", async () => {
+    const setupStatus = {
+      database: true,
+      llm: true,
+      github: true,
+      admin: true,
+      complete: true,
+      github_install_url: null,
+      public_url: "http://localhost:8000",
+    }
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: RequestInfo | URL) =>
+        Promise.resolve(
+          String(input).includes("/api/auth/me")
+            ? jsonResponse({ error: "Internal server error" }, { status: 500 })
+            : jsonResponse(setupStatus)
+        )
+      )
+    )
+
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(
+      <QueryClientProvider client={client}>
+        <AuthProvider>
+          <MemoryRouter initialEntries={["/app/dashboard"]}>
+            <Routes>
+              <Route path="/app" element={<RequireAuth />}>
+                <Route path="dashboard" element={<div>dashboard</div>} />
+              </Route>
+              <Route path="/login" element={<div>login screen</div>} />
+            </Routes>
+          </MemoryRouter>
+        </AuthProvider>
+      </QueryClientProvider>
+    )
+
+    expect(await screen.findByRole("button", { name: "Try again" })).toBeInTheDocument()
+    expect(screen.queryByText("login screen")).toBeNull()
   })
 })

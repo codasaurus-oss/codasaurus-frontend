@@ -49,11 +49,31 @@ function RootLayout() {
   )
 }
 
+function AuthOutage() {
+  const { refresh } = useAuth()
+  return (
+    <div className="flex min-h-svh items-center justify-center p-6">
+      <div className="w-full max-w-md">
+        <ErrorState
+          error="Cannot reach the server. Check your connection and try again."
+          onRetry={() => void refresh()}
+        />
+      </div>
+    </div>
+  )
+}
+
 function RootRedirect() {
   const { status } = useAuth()
   const setup = useQuery(setupStatusQueryOptions)
 
-  if (status === "loading" || setup.isPending) {
+  if (status === "loading") {
+    return <PageLoading />
+  }
+  if (status === "error") {
+    return <AuthOutage />
+  }
+  if (setup.isPending) {
     return <PageLoading />
   }
   if (setup.data && !setup.data.complete) {
@@ -71,7 +91,13 @@ function RequireAuth() {
   const { status } = useAuth()
   const setup = useQuery(setupStatusQueryOptions)
 
-  if (status === "loading" || setup.isPending) {
+  if (status === "loading") {
+    return <PageLoading />
+  }
+  if (status === "error") {
+    return <AuthOutage />
+  }
+  if (setup.isPending) {
     return <PageLoading />
   }
   if (setup.data && !setup.data.complete) {
@@ -139,4 +165,4 @@ const router = createHashRouter([
   },
 ])
 
-export { router }
+export { RequireAuth, router }

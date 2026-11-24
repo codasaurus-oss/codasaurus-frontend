@@ -191,7 +191,7 @@ const inviteSchema = z
   .object({
     id: z.number(),
     email: z.string().nullable(),
-    role: roleSchema,
+    role: z.string(),
     created_by: z.string().nullish(),
     expires_at: timestamp,
     created_at: timestamp,
@@ -208,7 +208,7 @@ const createdInviteSchema = z
   .object({
     id: z.number(),
     email: z.string().nullable(),
-    role: roleSchema,
+    role: z.string(),
     expires_at: timestamp,
     url: z.string(),
     token: z.string(),

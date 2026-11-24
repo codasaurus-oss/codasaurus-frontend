@@ -1,12 +1,7 @@
 import { queryOptions } from "@tanstack/react-query"
 
 import { apiFetch } from "@/lib/api/client"
-import {
-  meResponseSchema,
-  reviewsResponseSchema,
-  setupStatusSchema,
-  statsSchema,
-} from "@/lib/api/schemas"
+import { setupStatusSchema, statsSchema } from "@/lib/api/schemas"
 
 type ReviewFilters = {
   repoId?: number
@@ -35,12 +30,6 @@ const queryKeys = {
   settings: ["settings"] as const,
 }
 
-const meQueryOptions = queryOptions({
-  queryKey: queryKeys.me,
-  queryFn: () => apiFetch("/api/auth/me", undefined, meResponseSchema),
-  staleTime: 30_000,
-})
-
 const setupStatusQueryOptions = queryOptions({
   queryKey: queryKeys.setupStatus,
   queryFn: () => apiFetch("/api/setup/status", undefined, setupStatusSchema),
@@ -54,44 +43,8 @@ const statsQueryOptions = queryOptions({
   refetchInterval: 30_000,
 })
 
-const reviewsQueryOptions = (filters: ReviewFilters = {}) =>
-  queryOptions({
-    queryKey: queryKeys.reviewList(filters),
-    queryFn: () => {
-      const params = new URLSearchParams()
-      if (filters.repoId !== undefined) {
-        params.set("repo_id", String(filters.repoId))
-      }
-      if (filters.status) {
-        params.set("status", filters.status)
-      }
-      if (filters.limit !== undefined) {
-        params.set("limit", String(filters.limit))
-      }
-      if (filters.offset !== undefined) {
-        params.set("offset", String(filters.offset))
-      }
-      const search = params.toString()
-      return apiFetch(
-        search ? `/api/reviews?${search}` : "/api/reviews",
-        undefined,
-        reviewsResponseSchema
-      )
-    },
-    refetchInterval: (query) => {
-      const reviews = query.state.data?.reviews ?? []
-      return reviews.some(
-        (review) => review.status === "pending" || review.status === "running"
-      )
-        ? 10_000
-        : false
-    },
-  })
-
 export {
-  meQueryOptions,
   queryKeys,
-  reviewsQueryOptions,
   setupStatusQueryOptions,
   statsQueryOptions,
 }

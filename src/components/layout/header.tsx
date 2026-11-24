@@ -8,6 +8,7 @@ import {
   SunMoonIcon,
   UserIcon,
 } from "lucide-react"
+import { toast } from "sonner"
 
 import { navigation } from "@/components/layout/navigation"
 import {
@@ -63,6 +64,8 @@ function Header() {
   async function logout() {
     try {
       await apiFetch("/api/auth/logout", { method: "POST" })
+    } catch {
+      toast.error("Signed out locally. The server could not be reached.")
     } finally {
       // The guard redirects to login once the local user is cleared.
       setUser(null)

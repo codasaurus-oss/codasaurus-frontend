@@ -9,9 +9,10 @@ import {
 } from "react"
 
 import { apiFetch } from "@/lib/api/client"
+import { ApiError } from "@/lib/api/errors"
 import { meResponseSchema, type UserInfo } from "@/lib/api/schemas"
 
-type AuthStatus = "loading" | "authenticated" | "anonymous"
+type AuthStatus = "loading" | "authenticated" | "anonymous" | "error"
 
 type AuthContextValue = {
   user: UserInfo | null
@@ -32,12 +33,19 @@ function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const refresh = useCallback(async () => {
+    setStatus("loading")
     try {
       const me = await apiFetch("/api/auth/me", undefined, meResponseSchema)
       setUser(me.authenticated ? me.user : null)
-    } catch {
-      // A failed probe means no usable session; the guard sends the user to login.
-      setUser(null)
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 401) {
+        setUser(null)
+        return
+      }
+      // An outage is not a logout: keep the session unknown so the guards can
+      // offer a retry instead of bouncing the user to the login screen.
+      setUserState(null)
+      setStatus("error")
     }
   }, [setUser])
 
