@@ -1,4 +1,3 @@
-import { useQueryClient } from "@tanstack/react-query"
 import { useState } from "react"
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
@@ -15,12 +14,12 @@ import { Textarea } from "@/components/ui/textarea"
 import { StepCard } from "@/features/setup/step-card"
 import { githubStep, type SetupStepProps } from "@/features/setup/steps"
 import { apiFetch } from "@/lib/api/client"
-import { queryKeys } from "@/lib/api/queries"
 import { setupResultSchema } from "@/lib/api/schemas"
 
 type GithubStepProps = SetupStepProps & {
   installUrl?: string | null
   publicUrl: string
+  onSaved: () => void
 }
 
 // Mirrors the server's is_local_url (src/api/setup.rs) so the manifest button
@@ -40,8 +39,8 @@ function GithubStep({
   installUrl,
   publicUrl,
   onComplete,
+  onSaved,
 }: GithubStepProps) {
-  const client = useQueryClient()
   const [appId, setAppId] = useState("")
   const [privateKey, setPrivateKey] = useState("")
   const [webhookSecret, setWebhookSecret] = useState("")
@@ -70,9 +69,8 @@ function GithubStep({
         setupResultSchema
       )
       setMessage(result.message ?? "GitHub App credentials saved")
-      // Stay on this step: the install link only exists once the credentials
-      // are saved, so advancing here would skip the only pre-owner install CTA.
-      await client.invalidateQueries({ queryKey: queryKeys.setupStatus })
+      // The parent holds this step open so the install link can render.
+      onSaved()
     } catch (caught) {
       setError(
         caught instanceof Error

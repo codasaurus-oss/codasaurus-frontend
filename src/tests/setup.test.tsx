@@ -73,6 +73,24 @@ function renderSetupComplete(client: QueryClient) {
   )
 }
 
+// Both wizard routes mounted together so a completion path is exercised
+// end to end instead of against a stub destination.
+function renderSetupFlow(client: QueryClient) {
+  render(
+    <QueryClientProvider client={client}>
+      <AuthProvider>
+        <MemoryRouter initialEntries={["/setup"]}>
+          <Routes>
+            <Route path="/setup" element={<SetupRoute />} />
+            <Route path="/setup/complete" element={<SetupCompleteRoute />} />
+            <Route path="/app/dashboard" element={<div>dashboard destination</div>} />
+          </Routes>
+        </MemoryRouter>
+      </AuthProvider>
+    </QueryClientProvider>
+  )
+}
+
 afterEach(() => {
   cleanup()
   vi.unstubAllGlobals()
@@ -179,6 +197,97 @@ describe("setup wizard", () => {
       "href",
       "#/login"
     )
+  })
+
+  it("lands on setup complete after creating the owner", async () => {
+    let adminCreated = false
+    stubFetch((url) => {
+      if (url === "/api/setup/status") {
+        return jsonResponse({
+          ...baseStatus,
+          llm: true,
+          github: true,
+          admin: adminCreated,
+          complete: adminCreated,
+        })
+      }
+      if (url === "/api/setup/admin") {
+        adminCreated = true
+        return jsonResponse({ status: "ok" })
+      }
+      return jsonResponse({ authenticated: false, user: null })
+    })
+    renderSetupFlow(newClient())
+
+    fireEvent.change(await screen.findByLabelText("Email"), {
+      target: { value: "owner@example.com" },
+    })
+    fireEvent.change(screen.getByLabelText("Password"), {
+      target: { value: "correct-horse-battery" },
+    })
+    fireEvent.change(screen.getByLabelText("Bootstrap secret"), {
+      target: { value: "bootstrap-secret" },
+    })
+    fireEvent.click(screen.getByRole("button", { name: "Create owner" }))
+
+    expect(await screen.findByText("Setup complete")).toBeInTheDocument()
+    expect(screen.queryByText("First-run setup")).toBeNull()
+  })
+
+  it("stays on the GitHub step and shows the install link after saving", async () => {
+    let saved = false
+    const installUrl = "https://github.com/apps/codasaurus/installations/new"
+    stubFetch((url, init) => {
+      if (url === "/api/setup/status") {
+        return jsonResponse({
+          ...baseStatus,
+          llm: true,
+          github: saved,
+          github_install_url: saved ? installUrl : null,
+        })
+      }
+      if (url === "/api/setup/github" && init?.method === "POST") {
+        saved = true
+        return jsonResponse({ status: "ok" })
+      }
+      return jsonResponse({})
+    })
+    renderSetup(newClient())
+
+    fireEvent.click(await screen.findByRole("tab", { name: "Manual" }))
+    fireEvent.change(await screen.findByLabelText("App ID"), {
+      target: { value: "12345" },
+    })
+    fireEvent.change(screen.getByLabelText("Private key"), {
+      target: { value: "-----BEGIN PRIVATE KEY-----" },
+    })
+    fireEvent.change(screen.getByLabelText("Webhook secret"), {
+      target: { value: "hook-secret" },
+    })
+    fireEvent.click(screen.getByRole("button", { name: "Save credentials" }))
+
+    expect(
+      await screen.findByRole("link", { name: "Install the app on GitHub" })
+    ).toHaveAttribute("href", installUrl)
+    expect(screen.getByLabelText("App ID")).toBeInTheDocument()
+  })
+
+  it("disables the manifest button when the public URL is localhost", async () => {
+    stubFetch((url) => {
+      if (url === "/api/setup/status") {
+        return jsonResponse({
+          ...baseStatus,
+          llm: true,
+          public_url: "http://localhost:8000",
+        })
+      }
+      return jsonResponse({})
+    })
+    renderSetup(newClient())
+
+    expect(
+      await screen.findByRole("button", { name: "Create app with GitHub" })
+    ).toBeDisabled()
   })
 
   it("redirects to setup when the wizard is still incomplete", async () => {

@@ -83,9 +83,11 @@ function SetupCompleteRoute() {
           <CardHeader>
             <CardTitle>Setup complete</CardTitle>
             <CardDescription>
-              {authenticated
-                ? "Install the GitHub App and sync repositories to start reviewing pull requests."
-                : "The owner account is created. Creating it does not sign you in, so sign in to open the dashboard."}
+              {authStatus === "loading"
+                ? "Setup is complete. Checking your session…"
+                : authenticated
+                  ? "Install the GitHub App and sync repositories to start reviewing pull requests."
+                  : "The owner account is created. Creating it does not sign you in, so sign in to open the dashboard."}
             </CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col gap-3">

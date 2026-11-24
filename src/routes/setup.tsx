@@ -30,12 +30,14 @@ import {
   type SetupStepId,
 } from "@/features/setup/steps"
 import { queryKeys, setupStatusQueryOptions } from "@/lib/api/queries"
+import type { SetupStatus } from "@/lib/api/schemas"
 
 function SetupRoute() {
   const client = useQueryClient()
   const navigate = useNavigate()
   const setup = useQuery(setupStatusQueryOptions)
   const [selected, setSelected] = useState<SetupStepId | null>(null)
+  const [finishing, setFinishing] = useState(false)
 
   if (setup.isPending) {
     return (
@@ -60,7 +62,7 @@ function SetupRoute() {
   }
 
   const status = setup.data
-  if (status.complete) {
+  if (status.complete && !finishing) {
     return <Navigate to="/app/dashboard" replace />
   }
 
@@ -74,10 +76,22 @@ function SetupRoute() {
     void client.invalidateQueries({ queryKey: queryKeys.setupStatus })
   }
 
-  // Navigate first: invalidating setup status while complete:true is visible
-  // would otherwise redirect straight to the dashboard.
+  // The cached status has to read complete before /setup/complete mounts,
+  // otherwise its guard bounces straight back here. `finishing` suppresses this
+  // route's own dashboard redirect during that hand-off.
   function finish() {
+    setFinishing(true)
+    client.setQueryData<SetupStatus>(queryKeys.setupStatus, (previous) =>
+      previous ? { ...previous, admin: true, complete: true } : previous
+    )
     void navigate("/setup/complete")
+    void client.invalidateQueries({ queryKey: queryKeys.setupStatus })
+  }
+
+  // Hold the GitHub step open: once github turns true the wizard would jump to
+  // Admin and skip the install link the user needs before the owner exists.
+  function holdGithubStep() {
+    setSelected("github")
     void client.invalidateQueries({ queryKey: queryKeys.setupStatus })
   }
 
@@ -94,6 +108,7 @@ function SetupRoute() {
             installUrl={status.github_install_url}
             publicUrl={status.public_url}
             onComplete={refresh}
+            onSaved={holdGithubStep}
           />
         )
       case "admin":
