@@ -1,7 +1,7 @@
 import { queryOptions } from "@tanstack/react-query"
 
 import { apiFetch } from "@/lib/api/client"
-import { setupStatusSchema, statsSchema } from "@/lib/api/schemas"
+import { oidcStatusSchema, setupStatusSchema, statsSchema } from "@/lib/api/schemas"
 
 type ReviewFilters = {
   repoId?: number
@@ -12,6 +12,8 @@ type ReviewFilters = {
 
 const queryKeys = {
   me: ["me"] as const,
+  oidcStatus: ["auth", "oidc-status"] as const,
+  invite: (token: string) => ["invites", "detail", token] as const,
   setupStatus: ["setup", "status"] as const,
   stats: ["stats"] as const,
   repos: ["repos"] as const,
@@ -30,6 +32,12 @@ const queryKeys = {
   settings: ["settings"] as const,
 }
 
+const oidcStatusQueryOptions = queryOptions({
+  queryKey: queryKeys.oidcStatus,
+  queryFn: () => apiFetch("/api/auth/oidc/status", undefined, oidcStatusSchema),
+  staleTime: 300_000,
+})
+
 const setupStatusQueryOptions = queryOptions({
   queryKey: queryKeys.setupStatus,
   queryFn: () => apiFetch("/api/setup/status", undefined, setupStatusSchema),
@@ -44,6 +52,7 @@ const statsQueryOptions = queryOptions({
 })
 
 export {
+  oidcStatusQueryOptions,
   queryKeys,
   setupStatusQueryOptions,
   statsQueryOptions,

@@ -53,9 +53,15 @@ const setupStatusSchema = z
 const inviteInfoSchema = z
   .object({
     email: z.string().nullable(),
-    role: z.string(),
+    role: normalizedRoleSchema,
     expires_at: timestamp,
     email_locked: z.boolean(),
+  })
+  .passthrough()
+
+const oidcStatusSchema = z
+  .object({
+    enabled: z.boolean(),
   })
   .passthrough()
 
@@ -396,6 +402,7 @@ const statsSchema = z
   .passthrough()
 
 type Role = z.infer<typeof roleSchema>
+type InviteInfo = z.infer<typeof inviteInfoSchema>
 type UserInfo = z.infer<typeof userInfoSchema>
 type MeResponse = z.infer<typeof meResponseSchema>
 type SetupStatus = z.infer<typeof setupStatusSchema>
@@ -423,6 +430,7 @@ export {
   mcpServerSchema,
   mcpServersResponseSchema,
   meResponseSchema,
+  oidcStatusSchema,
   repoListSchema,
   repoSchema,
   reviewDetailSchema,
@@ -439,6 +447,7 @@ export {
 }
 export type {
   Finding,
+  InviteInfo,
   MeResponse,
   Repo,
   Review,

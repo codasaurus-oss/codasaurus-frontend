@@ -89,6 +89,7 @@ function RootRedirect() {
 
 function RequireAuth() {
   const { status } = useAuth()
+  const location = useLocation()
   const setup = useQuery(setupStatusQueryOptions)
 
   if (status === "loading") {
@@ -104,7 +105,13 @@ function RequireAuth() {
     return <Navigate to="/setup" replace />
   }
   if (status === "anonymous") {
-    return <Navigate to="/login" replace />
+    return (
+      <Navigate
+        to="/login"
+        replace
+        state={{ from: location.pathname + location.search }}
+      />
+    )
   }
   return (
     <AppShell>
