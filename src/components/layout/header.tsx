@@ -46,6 +46,7 @@ import { SidebarTrigger } from "@/components/ui/sidebar"
 import { ChangePasswordDialog } from "@/features/users/change-password-dialog"
 import { apiFetch } from "@/lib/api/client"
 import { useAuth } from "@/lib/auth/auth-context"
+import { roleLabel } from "@/lib/auth/roles"
 import { useTheme, type Theme } from "@/lib/theme/theme-provider"
 
 function Header() {
@@ -159,7 +160,7 @@ function Header() {
                   <span className="truncate text-sm font-medium text-foreground">
                     {user.email}
                   </span>
-                  <span className="capitalize">{user.role}</span>
+                  <span>{roleLabel(user.role)}</span>
                 </DropdownMenuLabel>
               </DropdownMenuGroup>
               <DropdownMenuSeparator />

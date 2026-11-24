@@ -32,6 +32,7 @@ import { ApiError } from "@/lib/api/errors"
 import { inviteQueryOptions } from "@/lib/api/queries"
 import type { InviteInfo } from "@/lib/api/schemas"
 import { useAuth } from "@/lib/auth/auth-context"
+import { roleLabel } from "@/lib/auth/roles"
 
 function acceptErrorMessage(error: unknown) {
   if (error instanceof ApiError) {
@@ -79,7 +80,7 @@ function InviteDetails({ invite }: { invite: InviteInfo }) {
       </div>
       <div className="flex items-center justify-between gap-4">
         <span className="text-muted-foreground">Role</span>
-        <Badge className="capitalize">{invite.role}</Badge>
+        <Badge>{roleLabel(invite.role)}</Badge>
       </div>
       <div className="flex items-center justify-between gap-4">
         <span className="text-muted-foreground">Expires</span>

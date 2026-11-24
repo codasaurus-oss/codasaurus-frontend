@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react"
+import { useId, useState, type ReactNode } from "react"
 
 import {
   AlertDialog,
@@ -36,6 +36,7 @@ function ConfirmDialog({
   children,
 }: ConfirmDialogProps) {
   const [typed, setTyped] = useState("")
+  const instructionsId = useId()
 
   function handleOpenChange(value: boolean) {
     if (!value) setTyped("")
@@ -43,6 +44,14 @@ function ConfirmDialog({
   }
 
   const confirmed = confirmationText === undefined || typed === confirmationText
+
+  function confirm() {
+    if (!confirmed) {
+      return
+    }
+    onConfirm()
+    handleOpenChange(false)
+  }
 
   return (
     <AlertDialog open={open} onOpenChange={handleOpenChange}>
@@ -53,16 +62,23 @@ function ConfirmDialog({
         </AlertDialogHeader>
         {confirmationText !== undefined ? (
           <div className="flex flex-col gap-2">
-            <p className="text-sm text-muted-foreground">
+            <p id={instructionsId} className="text-sm text-muted-foreground">
               Type{" "}
               <span className="font-mono text-foreground">{confirmationText}</span>{" "}
               to confirm.
             </p>
             <Input
               aria-label="Confirmation"
+              aria-describedby={instructionsId}
               autoComplete="off"
               value={typed}
               onChange={(event) => setTyped(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.preventDefault()
+                  confirm()
+                }
+              }}
             />
           </div>
         ) : null}
@@ -72,10 +88,7 @@ function ConfirmDialog({
           <AlertDialogAction
             variant={destructive ? "destructive" : "default"}
             disabled={!confirmed}
-            onClick={() => {
-              onConfirm()
-              handleOpenChange(false)
-            }}
+            onClick={confirm}
           >
             {confirmLabel ?? (destructive ? "Delete" : "Confirm")}
           </AlertDialogAction>

@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import {
+  act,
   cleanup,
   fireEvent,
   render,
@@ -13,7 +14,7 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 import { Header } from "@/components/layout/header"
 import { SidebarProvider } from "@/components/ui/sidebar"
 import { ChangePasswordDialog } from "@/features/users/change-password-dialog"
-import { AuthProvider } from "@/lib/auth/auth-context"
+import { AuthProvider, useAuth } from "@/lib/auth/auth-context"
 import { ThemeProvider } from "@/lib/theme/theme-provider"
 import UsersRoute from "@/routes/users"
 
@@ -211,6 +212,16 @@ function renderHeader(authProvider: "local" | "oidc") {
   )
 }
 
+function AuthProbe() {
+  const { status, refresh } = useAuth()
+  return (
+    <div>
+      <span>{status}</span>
+      <button onClick={() => void refresh(true)}>Silent refresh</button>
+    </div>
+  )
+}
+
 async function openAccountMenu() {
   const account = await screen.findByRole("button", { name: "Account" })
   fireEvent.mouseDown(account)
@@ -388,7 +399,7 @@ describe("users", () => {
     fireEvent.change(input, { target: { value: "bob@example.com" } })
     expect(action).toBeEnabled()
 
-    fireEvent.click(action)
+    fireEvent.keyDown(input, { key: "Enter" })
 
     await waitFor(() => {
       const post = fetchMock.mock.calls.find(
@@ -398,6 +409,158 @@ describe("users", () => {
       )
       expect(post).toBeDefined()
     })
+
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Transfer bootstrap to bob@example.com",
+      })
+    )
+    expect(await screen.findByLabelText("Confirmation")).toHaveValue("")
+
+    fireEvent.change(screen.getByLabelText("Confirmation"), {
+      target: { value: "bob" },
+    })
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }))
+
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Transfer bootstrap to bob@example.com",
+      })
+    )
+    expect(await screen.findByLabelText("Confirmation")).toHaveValue("")
+  })
+
+  it("hides transfer bootstrap from a non-bootstrap owner", async () => {
+    const fetchMock = stubApi({ role: "owner", isBootstrap: false })
+    renderUsers()
+
+    expect(await screen.findByText("ada@example.com")).toBeInTheDocument()
+    expect(
+      screen.queryByRole("button", { name: /Transfer bootstrap/ })
+    ).toBeNull()
+    expect(
+      fetchMock.mock.calls.some(([input]) =>
+        String(input).endsWith("/transfer-bootstrap")
+      )
+    ).toBe(false)
+  })
+
+  it("hides remove for the bootstrap owner and the current user", async () => {
+    const members = [
+      {
+        id: 1,
+        email: "bootstrap@example.com",
+        role: "owner",
+        auth_provider: "local",
+        is_bootstrap: true,
+        created_at: "2026-11-20T10:00:00Z",
+      },
+      {
+        id: 2,
+        email: "owner@example.com",
+        role: "owner",
+        auth_provider: "local",
+        is_bootstrap: false,
+        created_at: "2026-11-21T10:00:00Z",
+      },
+      {
+        id: 3,
+        email: "ada@example.com",
+        role: "viewer",
+        auth_provider: "local",
+        is_bootstrap: false,
+        created_at: "2026-11-22T10:00:00Z",
+      },
+    ]
+    stubApi({ role: "owner", isBootstrap: false, users: members })
+    renderUsers()
+
+    expect(await screen.findByText("ada@example.com")).toBeInTheDocument()
+    expect(
+      screen.queryByRole("button", { name: "Remove bootstrap@example.com" })
+    ).toBeNull()
+    expect(
+      screen.queryByRole("button", { name: "Remove owner@example.com" })
+    ).toBeNull()
+    expect(
+      screen.getByRole("button", { name: "Remove ada@example.com" })
+    ).toBeInTheDocument()
+  })
+
+  it("disables role changes and removal for the last owner", async () => {
+    stubApi({
+      role: "owner",
+      users: [
+        {
+          id: 1,
+          email: "owner@example.com",
+          role: "owner",
+          auth_provider: "local",
+          is_bootstrap: true,
+          created_at: "2026-11-20T10:00:00Z",
+        },
+      ],
+    })
+    renderUsers()
+
+    expect(
+      await screen.findByRole("combobox", {
+        name: "Role for owner@example.com",
+      })
+    ).toBeDisabled()
+    expect(
+      screen.queryByRole("button", { name: "Remove owner@example.com" })
+    ).toBeNull()
+  })
+})
+
+describe("silent auth refresh", () => {
+  it("keeps the signed-in state without a loading flash", async () => {
+    const me = {
+      authenticated: true,
+      user: {
+        email: "owner@example.com",
+        role: "owner",
+        auth_provider: "local",
+        is_bootstrap: true,
+      },
+    }
+    let resolveRefresh: ((response: Response) => void) | undefined
+    let calls = 0
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: RequestInfo | URL) => {
+        if (String(input) !== "/api/auth/me") {
+          return Promise.resolve(jsonResponse({}, 500))
+        }
+        calls += 1
+        if (calls === 1) {
+          return Promise.resolve(jsonResponse(me))
+        }
+        return new Promise<Response>((resolve) => {
+          resolveRefresh = resolve
+        })
+      })
+    )
+
+    render(
+      <AuthProvider>
+        <AuthProbe />
+      </AuthProvider>
+    )
+
+    expect(await screen.findByText("authenticated")).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "Silent refresh" }))
+
+    await waitFor(() => expect(resolveRefresh).toBeDefined())
+    expect(screen.getByText("authenticated")).toBeInTheDocument()
+    expect(screen.queryByText("loading")).toBeNull()
+
+    await act(async () => {
+      resolveRefresh?.(jsonResponse(me))
+    })
+    expect(screen.getByText("authenticated")).toBeInTheDocument()
   })
 })
 

@@ -90,7 +90,7 @@ describe("invite route", () => {
     const email = await screen.findByLabelText("Email")
     expect(email).toHaveAttribute("readonly")
     expect(email).toHaveValue("locked@example.com")
-    expect(screen.getByText("owner")).toBeInTheDocument()
+    expect(screen.getByText("Owner")).toBeInTheDocument()
   })
 
   it("requires an email when the invite is not locked to one", async () => {

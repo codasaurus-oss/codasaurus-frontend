@@ -4,6 +4,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react"
@@ -17,7 +18,7 @@ type AuthStatus = "loading" | "authenticated" | "anonymous" | "error"
 type AuthContextValue = {
   user: UserInfo | null
   status: AuthStatus
-  refresh: () => Promise<void>
+  refresh: (silent?: boolean) => Promise<void>
   setUser: (user: UserInfo | null) => void
 }
 
@@ -35,28 +36,42 @@ function isOutage(error: unknown) {
 function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUserState] = useState<UserInfo | null>(null)
   const [status, setStatus] = useState<AuthStatus>("loading")
+  const userRef = useRef<UserInfo | null>(null)
 
   const setUser = useCallback((next: UserInfo | null) => {
+    userRef.current = next
     setUserState(next)
     setStatus(next ? "authenticated" : "anonymous")
   }, [])
 
-  const refresh = useCallback(async () => {
-    setStatus("loading")
-    try {
-      const me = await apiFetch("/api/auth/me", undefined, meResponseSchema)
-      setUser(me.authenticated ? me.user : null)
-    } catch (error) {
-      if (!isOutage(error)) {
-        setUser(null)
-        return
+  const refresh = useCallback(
+    async (silent = false) => {
+      // A silent refresh of a signed-in user must not unmount the app behind
+      // the guards while it is in flight.
+      const quiet = silent && userRef.current !== null
+      if (!quiet) {
+        setStatus("loading")
       }
-      // An outage is not a logout: keep the session unknown so the guards can
-      // offer a retry instead of bouncing the user to the login screen.
-      setUserState(null)
-      setStatus("error")
-    }
-  }, [setUser])
+      try {
+        const me = await apiFetch("/api/auth/me", undefined, meResponseSchema)
+        setUser(me.authenticated ? me.user : null)
+      } catch (error) {
+        if (!isOutage(error)) {
+          setUser(null)
+          return
+        }
+        if (quiet) {
+          return
+        }
+        // An outage is not a logout: keep the session unknown so the guards can
+        // offer a retry instead of bouncing the user to the login screen.
+        userRef.current = null
+        setUserState(null)
+        setStatus("error")
+      }
+    },
+    [setUser]
+  )
 
   useEffect(() => {
     void refresh()

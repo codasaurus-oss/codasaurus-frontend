@@ -6,7 +6,6 @@ import { toast } from "sonner"
 import { ConfirmDialog } from "@/components/common/confirm-dialog"
 import { ErrorState } from "@/components/common/error-state"
 import { LoadingState } from "@/components/common/loading-state"
-import { StatusBadge } from "@/components/common/status-badge"
 import { PageHeader } from "@/components/layout/page-header"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -68,9 +67,8 @@ function UsersRoute() {
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: queryKeys.users }),
       queryClient.invalidateQueries({ queryKey: queryKeys.invites }),
-      queryClient.invalidateQueries({ queryKey: queryKeys.me }),
     ])
-    await refresh()
+    await refresh(true)
   }
 
   async function changeRole(target: User, role: Role) {
@@ -132,6 +130,7 @@ function UsersRoute() {
   }
 
   const roster = users.data.users
+  const ownerCount = roster.filter((member) => member.role === "owner").length
 
   return (
     <div className="flex flex-col gap-4">
@@ -164,11 +163,16 @@ function UsersRoute() {
             </TableHeader>
             <TableBody>
               {roster.map((member) => {
+                const isSelf = member.email === user?.email
+                const isLastOwner =
+                  member.role === "owner" && ownerCount <= 1
                 const canTransferBootstrap =
                   isOwner &&
                   Boolean(user?.is_bootstrap) &&
                   !member.is_bootstrap &&
                   member.role === "owner"
+                const canRemove =
+                  !member.is_bootstrap && !isSelf && !isLastOwner
                 return (
                   <TableRow key={member.id}>
                     <TableCell className="font-medium">
@@ -179,6 +183,7 @@ function UsersRoute() {
                         <Select
                           items={roleItems}
                           value={member.role}
+                          disabled={isLastOwner}
                           onValueChange={(value) => {
                             if (value && value !== member.role) {
                               setRoleChange({
@@ -234,14 +239,16 @@ function UsersRoute() {
                               Transfer bootstrap
                             </Button>
                           ) : null}
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            aria-label={`Remove ${member.email}`}
-                            onClick={() => setDeleteTarget(member)}
-                          >
-                            Remove
-                          </Button>
+                          {canRemove ? (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              aria-label={`Remove ${member.email}`}
+                              onClick={() => setDeleteTarget(member)}
+                            >
+                              Remove
+                            </Button>
+                          ) : null}
                         </div>
                       </TableCell>
                     ) : null}
@@ -289,7 +296,6 @@ function UsersRoute() {
                       <TableHead>Role</TableHead>
                       <TableHead>Created by</TableHead>
                       <TableHead>Expires</TableHead>
-                      <TableHead>Status</TableHead>
                       <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -309,9 +315,6 @@ function UsersRoute() {
                         </TableCell>
                         <TableCell className="text-muted-foreground">
                           {formatWhen(invite.expires_at)}
-                        </TableCell>
-                        <TableCell>
-                          <StatusBadge label="Pending" tone="success" />
                         </TableCell>
                         <TableCell className="text-right">
                           <Button
