@@ -481,9 +481,17 @@ describe("review detail", () => {
       expect(invalidate).toHaveBeenCalledWith({
         queryKey: queryKeys.review(42),
       })
+      expect(invalidate).toHaveBeenCalledWith({
+        queryKey: queryKeys.reviewFindings(42),
+      })
       expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.reviews })
       expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.stats })
     })
+
+    expect(
+      await screen.findByRole("button", { name: "Dismiss hardcoded-key" })
+    ).toBeDisabled()
+    expect(screen.getByText("Dismissed")).toBeInTheDocument()
   })
 
   it.each(["abc", "-1", "1.5", "99999999999999999999"])(

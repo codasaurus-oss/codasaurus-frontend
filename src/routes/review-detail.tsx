@@ -98,6 +98,7 @@ function ReviewDetailRoute() {
     enabled: id !== null && reviewStatus !== undefined && !active,
   })
   const [dismissing, setDismissing] = useState(false)
+  const [dismissed, setDismissed] = useState<Set<string>>(() => new Set())
 
   if (id === null) {
     return <NotFound />
@@ -137,8 +138,12 @@ function ReviewDetailRoute() {
         }),
       })
       toast.success("Finding dismissed")
+      setDismissed((current) => new Set(current).add(fingerprint))
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: queryKeys.review(review.id) }),
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.reviewFindings(review.id),
+        }),
         queryClient.invalidateQueries({ queryKey: queryKeys.reviews }),
         queryClient.invalidateQueries({ queryKey: queryKeys.stats }),
       ])
@@ -245,6 +250,7 @@ function ReviewDetailRoute() {
             findingsByFile={findingsQuery.data.findings_by_file}
             canDismiss={canDismiss}
             dismissing={dismissing}
+            dismissed={dismissed}
             onDismiss={(finding, message) => {
               void dismissFinding(finding, message)
             }}

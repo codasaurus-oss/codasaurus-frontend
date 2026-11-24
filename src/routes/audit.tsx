@@ -74,14 +74,31 @@ const eventTypeItems = [
   ...eventTypes.map((eventType) => ({ label: eventType, value: eventType })),
 ]
 
+const sensitiveMetadataKey = /(key|secret|token|password)/i
+
+function redactMetadata(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map(redactMetadata)
+  }
+  if (value !== null && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, nested]) => [
+        key,
+        sensitiveMetadataKey.test(key) ? "[redacted]" : redactMetadata(nested),
+      ])
+    )
+  }
+  return value
+}
+
 function metadataText(raw: string | null) {
   if (!raw) {
     return "No metadata"
   }
   try {
-    return JSON.stringify(JSON.parse(raw), null, 2)
+    return JSON.stringify(redactMetadata(JSON.parse(raw)), null, 2)
   } catch {
-    return raw
+    return "Metadata cannot be displayed."
   }
 }
 

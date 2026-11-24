@@ -59,7 +59,9 @@ async function apiFetch<T>(
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), timeoutMs)
   const headers = new Headers(requestInit.headers)
-  headers.set("Content-Type", "application/json")
+  if (requestInit.body !== undefined && requestInit.body !== null) {
+    headers.set("Content-Type", "application/json")
+  }
 
   let response: Response
   try {

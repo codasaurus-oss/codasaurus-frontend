@@ -81,6 +81,17 @@ backend:
 | `#/invite/:token` | Invite links sent to users |
 | `#/app/dashboard` | Post-login redirect |
 
+## Authentication notes
+
+- OIDC sign-in (`/api/auth/oidc/login`) always returns to `#/app/dashboard`: the
+  backend callback accepts no `next` or return-path parameter, so deep links are
+  not preserved. Password sign-in redirects to the route that triggered it.
+- Invite links carry the token in the URL hash fragment. Hash fragments can land
+  in browser history, so treat invite URLs as secrets and share them only with
+  the intended recipient.
+- The settings UI is owner-only. The backend settings read and test endpoints
+  also allow maintainers, with secret values masked.
+
 ## Testing
 
 ```bash

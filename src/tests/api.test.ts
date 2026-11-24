@@ -55,7 +55,16 @@ describe("apiFetch", () => {
     expect(repos[0].default_branch).toBe("main")
   })
 
-  it("sends credentials and a JSON content type", async () => {
+  it("does not send a JSON content type on a bodyless GET", async () => {
+    const fetchMock = stubFetch(jsonResponse([]))
+
+    await apiFetch("/api/repos", undefined, repoListSchema)
+
+    const init = fetchMock.mock.calls[0][1] as RequestInit
+    expect(new Headers(init.headers).get("Content-Type")).toBeNull()
+  })
+
+  it("sends credentials and a JSON content type when a body is present", async () => {
     const fetchMock = stubFetch(jsonResponse([]))
 
     await apiFetch("/api/repos", { method: "POST", body: "{}" }, repoListSchema)

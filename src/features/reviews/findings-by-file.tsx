@@ -2,6 +2,7 @@ import { useState } from "react"
 
 import { ConfirmDialog } from "@/components/common/confirm-dialog"
 import { StatusBadge } from "@/components/common/status-badge"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
   Collapsible,
@@ -24,6 +25,7 @@ type FindingsByFileProps = {
   findingsByFile: Record<string, Finding[]>
   canDismiss: boolean
   dismissing: boolean
+  dismissed: ReadonlySet<string>
   onDismiss: (finding: Finding, message: string) => void
 }
 
@@ -41,13 +43,17 @@ function FindingRow({
   finding,
   canDismiss,
   dismissing,
+  dismissed,
   onSelectDismiss,
 }: {
   finding: Finding
   canDismiss: boolean
   dismissing: boolean
+  dismissed: ReadonlySet<string>
   onSelectDismiss: (finding: Finding) => void
 }) {
+  const fingerprint = finding.fingerprint?.trim()
+  const isDismissed = fingerprint !== undefined && dismissed.has(fingerprint)
   return (
     <TableRow>
       <TableCell className="align-top">
@@ -91,20 +97,25 @@ function FindingRow({
       </TableCell>
       <TableCell className="align-top text-right">
         {canDismiss ? (
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={!finding.fingerprint || dismissing}
-            title={
-              finding.fingerprint
-                ? undefined
-                : "This finding has no fingerprint, so it cannot be dismissed."
-            }
-            aria-label={`Dismiss ${finding.rule_id ?? finding.detector}`}
-            onClick={() => onSelectDismiss(finding)}
-          >
-            Dismiss
-          </Button>
+          <div className="flex items-center justify-end gap-2">
+            {isDismissed ? <Badge variant="secondary">Dismissed</Badge> : null}
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={!fingerprint || dismissing || isDismissed}
+              title={
+                fingerprint
+                  ? isDismissed
+                    ? "This finding was already dismissed in this session."
+                    : undefined
+                  : "This finding has no fingerprint, so it cannot be dismissed."
+              }
+              aria-label={`Dismiss ${finding.rule_id ?? finding.detector}`}
+              onClick={() => onSelectDismiss(finding)}
+            >
+              Dismiss
+            </Button>
+          </div>
         ) : null}
       </TableCell>
     </TableRow>
@@ -115,6 +126,7 @@ function FindingsByFile({
   findingsByFile,
   canDismiss,
   dismissing,
+  dismissed,
   onDismiss,
 }: FindingsByFileProps) {
   const [selected, setSelected] = useState<Finding | null>(null)
@@ -158,6 +170,7 @@ function FindingsByFile({
                     finding={finding}
                     canDismiss={canDismiss}
                     dismissing={dismissing}
+                    dismissed={dismissed}
                     onSelectDismiss={setSelected}
                   />
                 ))}

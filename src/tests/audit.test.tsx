@@ -19,7 +19,8 @@ const entries = [
     actor: "owner@example.com",
     target_type: "user",
     target_id: 3,
-    metadata_json: '{"ip":"127.0.0.1","ok":true}',
+    metadata_json:
+      '{"ip":"127.0.0.1","ok":true,"auth":{"api_key":"sk-live-123","nested":[{"token":"tkn-456"},{"safe":"kept"}]}}',
     created_at: "2026-11-23T10:00:00Z",
   },
   {
@@ -191,8 +192,29 @@ describe("audit", () => {
       })
     )
 
-    expect(await screen.findByText("<b>not json</b>")).toBeInTheDocument()
+    expect(
+      await screen.findByText("Metadata cannot be displayed.")
+    ).toBeInTheDocument()
+    expect(screen.queryByText("<b>not json</b>")).toBeNull()
     expect(document.querySelector("b")).toBeNull()
+  })
+
+  it("redacts sensitive values at every nesting depth", async () => {
+    stubApi()
+    renderAudit()
+
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "View user.login metadata for owner@example.com",
+      })
+    )
+
+    const metadata = await screen.findByText(/"ip": "127.0.0.1"/)
+    const text = metadata.textContent ?? ""
+    expect(text).not.toContain("sk-live-123")
+    expect(text).not.toContain("tkn-456")
+    expect(text.match(/\[redacted\]/g)).toHaveLength(2)
+    expect(text).toContain('"safe": "kept"')
   })
 
   it("blocks viewers with a 403", async () => {
