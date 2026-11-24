@@ -1,48 +1,32 @@
-# Codasaurus dashboard
+# React + TypeScript + Vite
 
-The Svelte 5 single-page dashboard for [Codasaurus](https://github.com/codasaurus-oss/codasaurus), a self-hosted GitHub App that reviews pull requests.
+This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
 
-This repository is the UI only. The backend binary serves the built `dist/` from
-`svelte-dashboard/dist`, and the backend Docker image clones this repository at a
-pinned ref, builds it, and copies the output in. All calls are same-origin
-`/api/*`, so there is no configurable API base URL in production.
+Currently, two official plugins are available:
 
-## Development
+- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
+- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
 
-Requires Node 20+.
+## React Compiler
 
-```bash
-npm ci
-npm run dev
+The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+
+## Expanding the Oxlint configuration
+
+If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
+
+```json
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["react", "typescript", "oxc"],
+  "options": {
+    "typeAware": true
+  },
+  "rules": {
+    "react/rules-of-hooks": "error",
+    "react/only-export-components": ["warn", { "allowConstantExport": true }]
+  }
+}
 ```
 
-`npm run dev` serves on <http://localhost:5173> and proxies `/api` to
-`CODASAURUS_API` (default `http://127.0.0.1:3000`). Run the backend separately:
-
-```bash
-# in the codasaurus repository
-docker compose up -d postgres
-DATABASE_URL=postgres://codasaurus:codasaurus@127.0.0.1:5432/codasaurus cargo run -- serve
-```
-
-## Build
-
-```bash
-npm ci
-npm run build   # writes dist/
-```
-
-## Design system
-
-Design tokens are CSS custom properties in `src/app.css`; `DESIGN.md` describes
-the system and the rules for adding components.
-
-## Contributing
-
-See the organization defaults in
-[codasaurus-oss/.github](https://github.com/codasaurus-oss/.github). Commits must
-be signed off (`git commit -s`).
-
-## License
-
-AGPL-3.0-or-later. See [LICENSE](LICENSE).
+See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
