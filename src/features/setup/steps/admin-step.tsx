@@ -9,8 +9,8 @@ import {
   FieldLabel,
 } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
-import { StepCard } from "@/features/setup/step-card"
-import { adminStep, type SetupStepProps } from "@/features/setup/steps"
+import { SecretInput } from "@/features/setup/secret-field"
+import { type SetupStepProps } from "@/features/setup/steps"
 import { apiFetch } from "@/lib/api/client"
 import { setupResultSchema } from "@/lib/api/schemas"
 
@@ -29,7 +29,7 @@ function validate(email: string, password: string) {
   return null
 }
 
-function AdminStep({ complete, firstOwner, onComplete }: AdminStepProps) {
+function AdminStep({ firstOwner, onComplete }: AdminStepProps) {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [bootstrapSecret, setBootstrapSecret] = useState("")
@@ -69,7 +69,7 @@ function AdminStep({ complete, firstOwner, onComplete }: AdminStepProps) {
   }
 
   return (
-    <StepCard step={adminStep} complete={complete}>
+    <>
       <FieldGroup>
         <Field>
           <FieldLabel htmlFor="setup-admin-email">Email</FieldLabel>
@@ -83,12 +83,12 @@ function AdminStep({ complete, firstOwner, onComplete }: AdminStepProps) {
         </Field>
         <Field>
           <FieldLabel htmlFor="setup-admin-password">Password</FieldLabel>
-          <Input
+          <SecretInput
             id="setup-admin-password"
-            type="password"
+            label="Password"
             autoComplete="new-password"
             value={password}
-            onChange={(event) => setPassword(event.target.value)}
+            onChange={setPassword}
           />
           <FieldDescription>
             At least 10 characters and different from your email.
@@ -96,18 +96,16 @@ function AdminStep({ complete, firstOwner, onComplete }: AdminStepProps) {
         </Field>
         {firstOwner ? (
           <Field>
-            <FieldLabel htmlFor="setup-admin-secret">
-              Bootstrap secret
-            </FieldLabel>
-            <Input
+            <FieldLabel htmlFor="setup-admin-secret">Setup secret</FieldLabel>
+            <SecretInput
               id="setup-admin-secret"
-              type="password"
-              autoComplete="off"
+              label="Setup secret"
               value={bootstrapSecret}
-              onChange={(event) => setBootstrapSecret(event.target.value)}
+              onChange={setBootstrapSecret}
             />
             <FieldDescription>
-              The value of CODASAURUS_BOOTSTRAP_SECRET set on the server.
+              The one-time key from your server settings. It is needed only to
+              create the first owner account.
             </FieldDescription>
           </Field>
         ) : null}
@@ -122,7 +120,7 @@ function AdminStep({ complete, firstOwner, onComplete }: AdminStepProps) {
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       ) : null}
-    </StepCard>
+    </>
   )
 }
 

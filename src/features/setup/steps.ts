@@ -1,15 +1,9 @@
 import type { SetupStatus } from "@/lib/api/schemas"
 
-const databaseStep = {
-  id: "database",
-  title: "Database",
-  description: "Confirm the Postgres connection the server uses at runtime.",
-} as const
-
 const llmStep = {
   id: "llm",
-  title: "LLM",
-  description: "Connect a LiteLLM gateway, or run Tier-1 detectors only.",
+  title: "Inference",
+  description: "Configure models for code reviews and repository search.",
 } as const
 
 const githubStep = {
@@ -24,7 +18,7 @@ const adminStep = {
   description: "Create the first owner account for this instance.",
 } as const
 
-const setupSteps = [databaseStep, llmStep, githubStep, adminStep] as const
+const setupSteps = [llmStep, githubStep, adminStep] as const
 
 type SetupStep = (typeof setupSteps)[number]
 type SetupStepId = SetupStep["id"]
@@ -49,7 +43,6 @@ function isStepUnlocked(status: SetupStatus, id: SetupStepId) {
 export {
   adminStep,
   completedCount,
-  databaseStep,
   firstIncompleteStep,
   githubStep,
   isStepUnlocked,

@@ -10,9 +10,8 @@ import {
 } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Textarea } from "@/components/ui/textarea"
-import { StepCard } from "@/features/setup/step-card"
-import { githubStep, type SetupStepProps } from "@/features/setup/steps"
+import { SecretInput, SecretTextarea } from "@/features/setup/secret-field"
+import { type SetupStepProps } from "@/features/setup/steps"
 import { apiFetch } from "@/lib/api/client"
 import { setupResultSchema } from "@/lib/api/schemas"
 
@@ -45,10 +44,32 @@ function GithubStep({
   const [privateKey, setPrivateKey] = useState("")
   const [webhookSecret, setWebhookSecret] = useState("")
   const [slug, setSlug] = useState("")
+  const [draftPublicUrl, setDraftPublicUrl] = useState(publicUrl)
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const localhost = isLocalUrl(publicUrl)
+
+  async function savePublicUrl() {
+    setBusy(true)
+    setError(null)
+    setMessage(null)
+    try {
+      const result = await apiFetch(
+        "/api/setup/public-url",
+        { method: "POST", body: JSON.stringify({ url: draftPublicUrl.trim() }) },
+        setupResultSchema
+      )
+      setMessage(result.message ?? "Public URL saved")
+      onSaved()
+    } catch (caught) {
+      setError(
+        caught instanceof Error ? caught.message : "Could not save the public URL."
+      )
+    } finally {
+      setBusy(false)
+    }
+  }
 
   async function saveManual() {
     setBusy(true)
@@ -83,7 +104,7 @@ function GithubStep({
   }
 
   return (
-    <StepCard step={githubStep} complete={complete}>
+    <>
       <Tabs defaultValue="manifest">
         <TabsList>
           <TabsTrigger value="manifest">Manifest</TabsTrigger>
@@ -94,20 +115,34 @@ function GithubStep({
             GitHub creates the app from a manifest and returns here when it is
             done. You will leave this page for a moment.
           </p>
-          <div className="flex flex-wrap items-center gap-2 text-sm">
-            <span className="text-muted-foreground">Public URL</span>
-            <code className="font-mono text-xs">{publicUrl}</code>
-          </div>
+          <Field>
+            <FieldLabel htmlFor="setup-github-public-url">Public URL</FieldLabel>
+            <Input
+              id="setup-github-public-url"
+              value={draftPublicUrl}
+              onChange={(event) => setDraftPublicUrl(event.target.value)}
+              placeholder="https://codasaurus.example.com"
+            />
+            <FieldDescription>
+              Used for GitHub webhook and callback URLs.
+            </FieldDescription>
+          </Field>
           {localhost ? (
             <Alert>
               <AlertTitle>Localhost URL</AlertTitle>
               <AlertDescription>
-                GitHub cannot reach a localhost URL, so it cannot build the app
-                manifest. Save a public HTTPS URL in the Database step, or use
-                the Manual tab.
+                GitHub cannot reach a localhost URL. Save a public HTTPS URL
+                here, or use the Manual tab.
               </AlertDescription>
             </Alert>
           ) : null}
+          <Button
+            variant="outline"
+            disabled={busy || draftPublicUrl.trim() === ""}
+            onClick={() => void savePublicUrl()}
+          >
+            {busy ? "Saving…" : "Save public URL"}
+          </Button>
           <Button
             disabled={localhost}
             onClick={() => {
@@ -128,15 +163,13 @@ function GithubStep({
               />
             </Field>
             <Field>
-              <FieldLabel htmlFor="setup-github-private-key">
-                Private key
-              </FieldLabel>
-              <Textarea
+              <SecretTextarea
                 id="setup-github-private-key"
-                className="font-mono text-xs"
+                label="Private key"
+                className="field-sizing-fixed h-40 max-h-40 resize-y overflow-y-auto font-mono text-xs"
                 rows={6}
                 value={privateKey}
-                onChange={(event) => setPrivateKey(event.target.value)}
+                onChange={setPrivateKey}
               />
               <FieldDescription>
                 The PEM private key shown on the GitHub App settings page.
@@ -146,12 +179,11 @@ function GithubStep({
               <FieldLabel htmlFor="setup-github-webhook-secret">
                 Webhook secret
               </FieldLabel>
-              <Input
+              <SecretInput
                 id="setup-github-webhook-secret"
-                type="password"
-                autoComplete="off"
+                label="Webhook secret"
                 value={webhookSecret}
-                onChange={(event) => setWebhookSecret(event.target.value)}
+                onChange={setWebhookSecret}
               />
             </Field>
             <Field>
@@ -203,7 +235,7 @@ function GithubStep({
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       ) : null}
-    </StepCard>
+    </>
   )
 }
 

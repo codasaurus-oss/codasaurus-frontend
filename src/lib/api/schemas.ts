@@ -90,14 +90,32 @@ const databaseStatusSchema = z
   })
   .passthrough()
 
+const gatewayCatalogModelSchema = z
+  .object({ name: z.string(), mode: z.string() })
+  .passthrough()
+
+const modelCatalogSchema = z.object({
+  models: z.array(gatewayCatalogModelSchema),
+})
+
 const llmConfigSchema = z
   .object({
     provider: z.string().nullable(),
     api_key: z.string().nullable(),
     model: z.string().nullable(),
-    models: z.array(
-      z.object({ id: z.string(), name: z.string() }).passthrough()
-    ),
+    model_cheap: z.string().nullish(),
+    embedding_model: z.string().nullish(),
+    upstream_provider: z.string().nullish(),
+    upstream_model: z.string().nullish(),
+    upstream_model_cheap: z.string().nullish(),
+    upstream_model_embedding: z.string().nullish(),
+    models: z
+      .array(z.object({ id: z.string(), name: z.string() }).passthrough())
+      .default([]),
+    providers: z
+      .array(z.object({ id: z.string(), name: z.string() }).passthrough())
+      .default([]),
+    catalog: z.array(gatewayCatalogModelSchema).default([]),
   })
   .passthrough()
 
@@ -556,6 +574,7 @@ export {
   learningRuleSchema,
   learningRulesResponseSchema,
   llmConfigSchema,
+  modelCatalogSchema,
   loginResponseSchema,
   logoutResponseSchema,
   mcpServerSchema,

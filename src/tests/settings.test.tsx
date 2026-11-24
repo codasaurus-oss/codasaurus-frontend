@@ -124,8 +124,18 @@ async function renderedSettingKeys() {
     const tab = screen.getByRole("tab", { name })
     fireEvent.click(tab)
     await waitFor(() => expect(tab).toHaveAttribute("aria-selected", "true"))
+    await waitFor(() =>
+      expect(
+        document.querySelectorAll(
+          '[data-slot="tabs-content"]:not([data-hidden])'
+        )
+      ).toHaveLength(1)
+    )
+    const panel = document.querySelector(
+      '[data-slot="tabs-content"]:not([data-hidden])'
+    )
     const ids = Array.from(
-      document.querySelectorAll('[id^="setting-"]'),
+      panel?.querySelectorAll('[id^="setting-"]') ?? [],
       (element) => element.id.slice("setting-".length)
     )
     seen.push(...ids)
@@ -272,8 +282,8 @@ describe("settings", () => {
     await screen.findByLabelText("Public URL")
     const seen = await renderedSettingKeys()
 
-    expect(seen).toHaveLength(ALLOWED_KEYS.length)
     expect([...seen].sort()).toEqual([...ALLOWED_KEYS].sort())
+    expect(seen).toHaveLength(ALLOWED_KEYS.length)
     for (const key of [
       "database_url",
       "llm_base_url",

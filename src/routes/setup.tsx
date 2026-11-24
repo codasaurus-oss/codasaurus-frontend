@@ -6,10 +6,12 @@ import { ErrorState } from "@/components/common/error-state"
 import { LoadingState } from "@/components/common/loading-state"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { ButtonGroup } from "@/components/ui/button-group"
 import {
   Card,
   CardContent,
   CardDescription,
+  CardFooter,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
@@ -19,7 +21,6 @@ import {
   ProgressValue,
 } from "@/components/ui/progress"
 import { AdminStep } from "@/features/setup/steps/admin-step"
-import { DatabaseStep } from "@/features/setup/steps/database-step"
 import { GithubStep } from "@/features/setup/steps/github-step"
 import { LlmStep } from "@/features/setup/steps/llm-step"
 import {
@@ -106,8 +107,6 @@ function SetupRoute() {
 
   function activeStep() {
     switch (activeId) {
-      case "database":
-        return <DatabaseStep complete={status.database} onComplete={refresh} />
       case "llm":
         return <LlmStep complete={status.llm} onComplete={refresh} />
       case "github":
@@ -133,6 +132,11 @@ function SetupRoute() {
     }
   }
 
+  const activeIndex = setupSteps.findIndex((step) => step.id === activeId)
+  const currentStep = setupSteps[activeIndex] ?? setupSteps[0]
+  const previousStep = setupSteps[activeIndex - 1]
+  const nextStep = setupSteps[activeIndex + 1]
+
   return (
     <div className="flex min-h-svh justify-center p-6 md:p-10">
       <div className="flex w-full max-w-xl flex-col gap-6">
@@ -156,9 +160,9 @@ function SetupRoute() {
             <Progress
               value={(completedCount(status) / setupSteps.length) * 100}
             >
-              <ProgressLabel>Required steps</ProgressLabel>
+              <ProgressLabel>{`Step ${activeIndex + 1} of ${setupSteps.length}`}</ProgressLabel>
               <ProgressValue>
-                {() => `${completedCount(status)} of ${setupSteps.length}`}
+                {() => `${completedCount(status)} of ${setupSteps.length} complete`}
               </ProgressValue>
             </Progress>
             <div className="flex flex-col gap-1">
@@ -196,7 +200,37 @@ function SetupRoute() {
           </CardContent>
         </Card>
 
-        {activeStep()}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              {currentStep.title}
+              <Badge variant={status[currentStep.id] ? "secondary" : "outline"}>
+                {status[currentStep.id] ? "Done" : "Required"}
+              </Badge>
+            </CardTitle>
+            <CardDescription>{currentStep.description}</CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-4">{activeStep()}</CardContent>
+          <CardFooter>
+            <ButtonGroup className="w-full">
+              <Button
+                variant="outline"
+                className="flex-1"
+                disabled={!previousStep}
+                onClick={() => previousStep && setSelected(previousStep.id)}
+              >
+                Back
+              </Button>
+              <Button
+                className="flex-1"
+                disabled={!nextStep || !activeId || !status[activeId]}
+                onClick={() => nextStep && setSelected(nextStep.id)}
+              >
+                Next
+              </Button>
+            </ButtonGroup>
+          </CardFooter>
+        </Card>
       </div>
     </div>
   )
