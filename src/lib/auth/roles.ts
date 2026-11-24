@@ -7,6 +7,21 @@ const roleRank: Record<Role, number> = {
   owner: 3,
 }
 
+const roleLabels: Record<Role, string> = {
+  viewer: "Viewer",
+  maintainer: "Maintainer",
+  owner: "Owner",
+}
+
+const roleItems = (Object.keys(roleLabels) as Role[]).map((value) => ({
+  value,
+  label: roleLabels[value],
+}))
+
+function roleLabel(role: Role) {
+  return roleLabels[role]
+}
+
 // Setup endpoints fall back to owner-only once the first owner exists.
 const requiredRank = {
   review: roleRank.viewer,
@@ -24,5 +39,5 @@ function can(role: Role | null | undefined, action: Action): boolean {
   return roleRank[role] >= requiredRank[action]
 }
 
-export { can }
+export { can, roleItems, roleLabel }
 export type { Action }

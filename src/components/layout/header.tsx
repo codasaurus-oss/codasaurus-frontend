@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react"
 import {
+  KeyRoundIcon,
   LogOutIcon,
   MonitorIcon,
   MoonIcon,
@@ -32,6 +33,7 @@ import {
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuRadioGroup,
@@ -41,12 +43,14 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Separator } from "@/components/ui/separator"
 import { SidebarTrigger } from "@/components/ui/sidebar"
+import { ChangePasswordDialog } from "@/features/users/change-password-dialog"
 import { apiFetch } from "@/lib/api/client"
 import { useAuth } from "@/lib/auth/auth-context"
 import { useTheme, type Theme } from "@/lib/theme/theme-provider"
 
 function Header() {
   const [commandOpen, setCommandOpen] = useState(false)
+  const [passwordOpen, setPasswordOpen] = useState(false)
   const { theme, setTheme } = useTheme()
   const { user, setUser } = useAuth()
 
@@ -150,12 +154,21 @@ function Header() {
               </span>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-56">
-              <DropdownMenuLabel className="flex flex-col gap-0.5">
-                <span className="truncate text-sm font-medium text-foreground">
-                  {user.email}
-                </span>
-                <span className="capitalize">{user.role}</span>
-              </DropdownMenuLabel>
+              <DropdownMenuGroup>
+                <DropdownMenuLabel className="flex flex-col gap-0.5">
+                  <span className="truncate text-sm font-medium text-foreground">
+                    {user.email}
+                  </span>
+                  <span className="capitalize">{user.role}</span>
+                </DropdownMenuLabel>
+              </DropdownMenuGroup>
+              <DropdownMenuSeparator />
+              {(user.auth_provider ?? "local") === "local" ? (
+                <DropdownMenuItem onClick={() => setPasswordOpen(true)}>
+                  <KeyRoundIcon />
+                  Change password
+                </DropdownMenuItem>
+              ) : null}
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={() => void logout()}>
                 <LogOutIcon />
@@ -163,6 +176,13 @@ function Header() {
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
+        ) : null}
+        {user ? (
+          <ChangePasswordDialog
+            open={passwordOpen}
+            onOpenChange={setPasswordOpen}
+            email={user.email}
+          />
         ) : null}
       </div>
       <CommandDialog open={commandOpen} onOpenChange={setCommandOpen}>

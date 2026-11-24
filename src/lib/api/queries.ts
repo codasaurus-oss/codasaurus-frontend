@@ -5,6 +5,7 @@ import {
   githubSettingsSchema,
   healthResponseSchema,
   inviteInfoSchema,
+  invitesResponseSchema,
   oidcStatusSchema,
   repoListSchema,
   repoSchema,
@@ -14,6 +15,7 @@ import {
   settingsMapSchema,
   setupStatusSchema,
   statsSchema,
+  usersResponseSchema,
 } from "@/lib/api/schemas"
 
 type ReviewFilters = {
@@ -133,6 +135,18 @@ const healthQueryOptions = queryOptions({
   refetchInterval: 30_000,
 })
 
+const usersQueryOptions = queryOptions({
+  queryKey: queryKeys.users,
+  queryFn: () => apiFetch("/api/users", undefined, usersResponseSchema),
+  staleTime: 30_000,
+})
+
+const invitesQueryOptions = queryOptions({
+  queryKey: queryKeys.invites,
+  queryFn: () => apiFetch("/api/users/invites", undefined, invitesResponseSchema),
+  staleTime: 30_000,
+})
+
 const settingsQueryOptions = queryOptions({
   queryKey: queryKeys.settings,
   queryFn: () => apiFetch("/api/settings", undefined, settingsMapSchema),
@@ -150,6 +164,7 @@ export {
   githubSettingsQueryOptions,
   healthQueryOptions,
   inviteQueryOptions,
+  invitesQueryOptions,
   oidcStatusQueryOptions,
   queryKeys,
   repoQueryOptions,
@@ -160,5 +175,6 @@ export {
   settingsQueryOptions,
   setupStatusQueryOptions,
   statsQueryOptions,
+  usersQueryOptions,
 }
 export type { ReviewFilters }

@@ -269,7 +269,7 @@ const inviteSchema = z
   .object({
     id: z.number(),
     email: z.string().nullable(),
-    role: z.string(),
+    role: normalizedRoleSchema,
     created_by: z.string().nullish(),
     expires_at: timestamp,
     created_at: timestamp,
@@ -286,7 +286,7 @@ const createdInviteSchema = z
   .object({
     id: z.number(),
     email: z.string().nullable(),
-    role: z.string(),
+    role: normalizedRoleSchema,
     expires_at: timestamp,
     url: z.string(),
     token: z.string(),
@@ -525,6 +525,8 @@ type ReviewDetail = z.infer<typeof reviewDetailSchema>
 type Finding = z.infer<typeof findingSchema>
 type User = z.infer<typeof userSchema>
 type UsersResponse = z.infer<typeof usersResponseSchema>
+type Invite = z.infer<typeof inviteSchema>
+type CreatedInvite = z.infer<typeof createdInviteSchema>
 type SettingsMap = z.infer<typeof settingsMapSchema>
 
 export {
@@ -570,8 +572,10 @@ export {
   usersResponseSchema,
 }
 export type {
+  CreatedInvite,
   DatabaseStatus,
   Finding,
+  Invite,
   InviteInfo,
   LlmConfig,
   MeResponse,
