@@ -50,6 +50,51 @@ const setupStatusSchema = z
   })
   .passthrough()
 
+const setupResultSchema = z
+  .object({
+    status: z.string(),
+    message: z.string().nullish(),
+    test_passed: z.boolean().nullish(),
+  })
+  .passthrough()
+
+const databaseStatusSchema = z
+  .object({
+    connected: z.boolean(),
+    provider: z.string(),
+    host: z.string(),
+    database: z.string(),
+    server_version: z.string(),
+    hint: z.string(),
+  })
+  .passthrough()
+
+const llmConfigSchema = z
+  .object({
+    provider: z.string().nullable(),
+    api_key: z.string().nullable(),
+    model: z.string().nullable(),
+    models: z.array(
+      z.object({ id: z.string(), name: z.string() }).passthrough()
+    ),
+  })
+  .passthrough()
+
+const publicUrlSchema = z
+  .object({
+    url: z.string(),
+    source: z.string(),
+    localhost: z.boolean(),
+  })
+  .passthrough()
+
+const syncResultSchema = z
+  .object({
+    status: z.string(),
+    synced: z.number(),
+  })
+  .passthrough()
+
 const inviteInfoSchema = z
   .object({
     email: z.string().nullable(),
@@ -406,6 +451,11 @@ type InviteInfo = z.infer<typeof inviteInfoSchema>
 type UserInfo = z.infer<typeof userInfoSchema>
 type MeResponse = z.infer<typeof meResponseSchema>
 type SetupStatus = z.infer<typeof setupStatusSchema>
+type SetupResult = z.infer<typeof setupResultSchema>
+type DatabaseStatus = z.infer<typeof databaseStatusSchema>
+type LlmConfig = z.infer<typeof llmConfigSchema>
+type PublicUrl = z.infer<typeof publicUrlSchema>
+type SyncResult = z.infer<typeof syncResultSchema>
 type Repo = z.infer<typeof repoSchema>
 type Review = z.infer<typeof reviewSchema>
 type ReviewsResponse = z.infer<typeof reviewsResponseSchema>
@@ -418,6 +468,7 @@ export {
   auditEntrySchema,
   auditResponseSchema,
   createdInviteSchema,
+  databaseStatusSchema,
   findingSchema,
   githubUrlSchema,
   inviteInfoSchema,
@@ -425,12 +476,14 @@ export {
   invitesResponseSchema,
   learningRuleSchema,
   learningRulesResponseSchema,
+  llmConfigSchema,
   loginResponseSchema,
   logoutResponseSchema,
   mcpServerSchema,
   mcpServersResponseSchema,
   meResponseSchema,
   oidcStatusSchema,
+  publicUrlSchema,
   repoListSchema,
   repoSchema,
   reviewDetailSchema,
@@ -438,23 +491,30 @@ export {
   reviewsResponseSchema,
   reviewSchema,
   roleSchema,
+  setupResultSchema,
   setupStatusSchema,
   statsSchema,
   summaryJsonSchema,
+  syncResultSchema,
   userInfoSchema,
   userSchema,
   usersResponseSchema,
 }
 export type {
+  DatabaseStatus,
   Finding,
   InviteInfo,
+  LlmConfig,
   MeResponse,
+  PublicUrl,
   Repo,
   Review,
   ReviewDetail,
   ReviewsResponse,
   Role,
+  SetupResult,
   SetupStatus,
+  SyncResult,
   User,
   UserInfo,
   UsersResponse,
