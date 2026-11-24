@@ -1,5 +1,13 @@
 import { useEffect, useState } from "react"
-import { MonitorIcon, MoonIcon, SearchIcon, SunIcon, UserIcon } from "lucide-react"
+import {
+  LogOutIcon,
+  MonitorIcon,
+  MoonIcon,
+  SearchIcon,
+  SunIcon,
+  SunMoonIcon,
+  UserIcon,
+} from "lucide-react"
 
 import { navigation } from "@/components/layout/navigation"
 import {
@@ -23,17 +31,23 @@ import {
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Separator } from "@/components/ui/separator"
 import { SidebarTrigger } from "@/components/ui/sidebar"
+import { apiFetch } from "@/lib/api/client"
+import { useAuth } from "@/lib/auth/auth-context"
 import { useTheme, type Theme } from "@/lib/theme/theme-provider"
 
 function Header() {
   const [commandOpen, setCommandOpen] = useState(false)
   const { theme, setTheme } = useTheme()
+  const { user, setUser } = useAuth()
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -45,6 +59,15 @@ function Header() {
     window.addEventListener("keydown", onKeyDown)
     return () => window.removeEventListener("keydown", onKeyDown)
   }, [])
+
+  async function logout() {
+    try {
+      await apiFetch("/api/auth/logout", { method: "POST" })
+    } finally {
+      // The guard redirects to login once the local user is cleared.
+      setUser(null)
+    }
+  }
 
   return (
     <header className="flex h-16 shrink-0 items-center gap-2 border-b">
@@ -89,7 +112,7 @@ function Header() {
               />
             }
           >
-            <UserIcon />
+            <SunMoonIcon />
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-40">
             <DropdownMenuRadioGroup
@@ -111,6 +134,33 @@ function Header() {
             </DropdownMenuRadioGroup>
           </DropdownMenuContent>
         </DropdownMenu>
+        {user ? (
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              render={
+                <Button variant="ghost" size="sm" className="gap-2" aria-label="Account" />
+              }
+            >
+              <UserIcon />
+              <span className="hidden max-w-40 truncate sm:inline">
+                {user.email}
+              </span>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuLabel className="flex flex-col gap-0.5">
+                <span className="truncate text-sm font-medium text-foreground">
+                  {user.email}
+                </span>
+                <span className="capitalize">{user.role}</span>
+              </DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => void logout()}>
+                <LogOutIcon />
+                Log out
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        ) : null}
       </div>
       <CommandDialog open={commandOpen} onOpenChange={setCommandOpen}>
         <Command>
