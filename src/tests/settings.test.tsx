@@ -10,6 +10,7 @@ import { MemoryRouter } from "react-router"
 import { toast } from "sonner"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
+import { SettingField } from "@/features/settings/setting-field"
 import { settingsMapSchema } from "@/lib/api/schemas"
 import { AuthProvider } from "@/lib/auth/auth-context"
 import SettingsRoute from "@/routes/settings"
@@ -133,7 +134,13 @@ async function renderedSettingKeys() {
   return seen
 }
 
-function stubApi(options: { role?: string; settings?: Record<string, unknown> } = {}) {
+function stubApi(
+  options: {
+    role?: string
+    settings?: Record<string, unknown>
+    deleteStatus?: number
+  } = {}
+) {
   const role = options.role ?? "owner"
   const values = options.settings ?? settings
   const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
@@ -189,6 +196,14 @@ function stubApi(options: { role?: string; settings?: Record<string, unknown> } 
       return Promise.resolve(jsonResponse({ status: "ok", ok: true }))
     }
     if (method === "DELETE") {
+      if (options.deleteStatus && options.deleteStatus !== 200) {
+        return Promise.resolve(
+          jsonResponse(
+            { error: "Insufficient permissions for this action" },
+            options.deleteStatus
+          )
+        )
+      }
       return Promise.resolve(jsonResponse({ status: "ok", message: "Cleared" }))
     }
     return Promise.resolve(
@@ -300,6 +315,30 @@ describe("settings", () => {
     expect(JSON.stringify(putCalls(fetchMock))).not.toContain("•")
   })
 
+  it("warns instead of submitting a starred draft", async () => {
+    const fetchMock = vi.fn()
+    vi.stubGlobal("fetch", fetchMock)
+
+    render(
+      <SettingField
+        settingKey="llm_api_key"
+        label="API key"
+        value="••••••••"
+        onSaved={vi.fn()}
+      />
+    )
+
+    fireEvent.change(screen.getByLabelText("API key"), {
+      target: { value: "***" },
+    })
+    fireEvent.click(screen.getByRole("button", { name: "Replace API key" }))
+
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      "Masked and starred values are not submitted"
+    )
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
   it("clears only the metrics token with an empty value", async () => {
     const fetchMock = stubApi()
     renderSettings()
@@ -337,6 +376,31 @@ describe("settings", () => {
     fireEvent.click(screen.getByRole("tab", { name: "General" }))
     fireEvent.click(screen.getByRole("tab", { name: "Advanced" }))
     expect(screen.getByText("Restart required")).toBeInTheDocument()
+  })
+
+  it("refreshes the caches that depend on saved settings", async () => {
+    stubApi()
+    const client = renderSettings()
+    const invalidate = vi.spyOn(client, "invalidateQueries")
+
+    const input = await screen.findByLabelText("Public URL")
+    fireEvent.change(input, {
+      target: { value: "https://new.example.com" },
+    })
+    fireEvent.click(screen.getByRole("button", { name: "Save Public URL" }))
+
+    await waitFor(() => {
+      expect(invalidate).toHaveBeenCalledWith({ queryKey: ["settings"] })
+      expect(invalidate).toHaveBeenCalledWith({ queryKey: ["repos"] })
+      expect(invalidate).toHaveBeenCalledWith({
+        queryKey: ["auth", "oidc-status"],
+      })
+      expect(invalidate).toHaveBeenCalledWith({ queryKey: ["health"] })
+      expect(invalidate).toHaveBeenCalledWith({ queryKey: ["setup", "status"] })
+    })
+    expect(invalidate).not.toHaveBeenCalledWith({
+      queryKey: ["settings", "github"],
+    })
   })
 
   it("renders integration test success and failure inline", async () => {
@@ -384,6 +448,91 @@ describe("settings", () => {
       expect(String(deletes[0]?.[0])).toBe("/api/settings/github")
     })
     expect(toast.success).toHaveBeenCalledWith("Cleared")
+  })
+
+  it("scopes a destructive-action error to its own tab", async () => {
+    stubApi({ deleteStatus: 403 })
+    renderSettings()
+
+    await screen.findByLabelText("Public URL")
+    fireEvent.click(screen.getByRole("tab", { name: "GitHub" }))
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Clear GitHub config" })
+    )
+    fireEvent.click(await screen.findByRole("button", { name: "Delete" }))
+
+    expect(
+      await screen.findByText("Insufficient permissions for this action")
+    ).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("tab", { name: "Tickets" }))
+    await waitFor(() =>
+      expect(
+        screen.queryByText("Insufficient permissions for this action")
+      ).toBeNull()
+    )
+  })
+
+  it("reports an unchanged save without a success toast", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        jsonResponse({ status: "ok", key: "public_url", skipped: "unchanged" })
+      )
+    )
+
+    render(
+      <SettingField
+        settingKey="public_url"
+        label="Public URL"
+        value="https://old.example.com"
+        onSaved={vi.fn()}
+      />
+    )
+
+    fireEvent.change(screen.getByLabelText("Public URL"), {
+      target: { value: "https://new.example.com" },
+    })
+    fireEvent.click(screen.getByRole("button", { name: "Save Public URL" }))
+
+    await waitFor(() =>
+      expect(toast.message).toHaveBeenCalledWith("Public URL unchanged")
+    )
+    expect(toast.success).not.toHaveBeenCalled()
+  })
+
+  it("renders a rejected save inline", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        jsonResponse(
+          { error: "queue_workers must be between 1 and 8" },
+          400
+        )
+      )
+    )
+    const onSaved = vi.fn()
+
+    render(
+      <SettingField
+        settingKey="queue_workers"
+        label="Queue workers"
+        value="4"
+        onSaved={onSaved}
+      />
+    )
+
+    fireEvent.change(screen.getByLabelText("Queue workers"), {
+      target: { value: "9" },
+    })
+    fireEvent.click(screen.getByRole("button", { name: "Save Queue workers" }))
+
+    expect(
+      await screen.findByText("queue_workers must be between 1 and 8")
+    ).toBeInTheDocument()
+    expect(screen.getByText("Something went wrong")).toBeInTheDocument()
+    expect(onSaved).not.toHaveBeenCalled()
+    expect(toast.success).not.toHaveBeenCalled()
   })
 
   it.each(["viewer", "maintainer"])(

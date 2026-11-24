@@ -147,36 +147,6 @@ const TABS: Record<TabId, TabMeta> = {
 
 const TAB_IDS = Object.keys(TABS) as TabId[]
 
-// GET /api/settings omits these entirely; the UI must never render them.
-const HIDDEN_KEYS = new Set([
-  "database_url",
-  "llm_base_url",
-  "allow_local_llm",
-  "openrouter_api_key",
-])
-
-const SYNTHETIC_KEYS = new Set([
-  "offline_mode_effective",
-  "offline_mode_source",
-  "offline_mode_hint",
-])
-
-// Readable, but written by first-run setup rather than PUT /api/settings.
-const REGISTRATION_KEYS = new Set([
-  "github_app_id",
-  "github_app_name",
-  "github_app_slug",
-  "github_private_key",
-  "github_webhook_secret",
-])
-
-const KNOWN_KEYS = new Set([
-  ...TAB_IDS.flatMap((id) => TABS[id].fields.map(([key]) => key)),
-  ...HIDDEN_KEYS,
-  ...SYNTHETIC_KEYS,
-  ...REGISTRATION_KEYS,
-])
-
 type Integration = { path: string; label: string }
 
 const INTEGRATIONS: Record<TabId, Integration[]> = {
@@ -316,9 +286,8 @@ function RegistrationCard() {
 type TabBodyProps = {
   tab: TabId
   values: SettingsMap
-  extraKeys: string[]
   tests: Record<string, TestState>
-  clearError: unknown
+  clearErrors: Record<string, unknown>
   onSaved: (key: string, restartRequired: boolean) => void
   onTest: (integration: Integration) => void
   onClear: (target: ClearTarget) => void
@@ -327,9 +296,8 @@ type TabBodyProps = {
 function TabBody({
   tab,
   values,
-  extraKeys,
   tests,
-  clearError,
+  clearErrors,
   onSaved,
   onTest,
   onClear,
@@ -419,35 +387,22 @@ function TabBody({
               Removes stored credentials. This cannot be undone.
             </CardDescription>
           </CardHeader>
-          <CardContent className="flex flex-col items-start gap-2">
+          <CardContent className="flex flex-col gap-2">
             {clears.map((target) => (
-              <Button
+              <div
                 key={target.path}
-                variant="destructive"
-                onClick={() => onClear(target)}
+                className="flex flex-col items-start gap-2"
               >
-                {target.button}
-              </Button>
-            ))}
-            {clearError ? <ErrorState error={clearError} /> : null}
-          </CardContent>
-        </Card>
-      ) : null}
-
-      {tab === "advanced" && extraKeys.length > 0 ? (
-        <Card>
-          <CardHeader>
-            <CardTitle>Unlisted keys</CardTitle>
-            <CardDescription>
-              Present in the database but not editable from this console.
-              Values stay hidden.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-wrap gap-2">
-            {extraKeys.map((key) => (
-              <Badge key={key} variant="outline" className="font-mono">
-                {key}
-              </Badge>
+                <Button
+                  variant="destructive"
+                  onClick={() => onClear(target)}
+                >
+                  {target.button}
+                </Button>
+                {clearErrors[target.path] ? (
+                  <ErrorState error={clearErrors[target.path]} />
+                ) : null}
+              </div>
             ))}
           </CardContent>
         </Card>
@@ -463,12 +418,13 @@ function SettingsConsole() {
   const [restartKeys, setRestartKeys] = useState<string[]>([])
   const [tests, setTests] = useState<Record<string, TestState>>({})
   const [clearing, setClearing] = useState<ClearTarget | null>(null)
-  const [clearError, setClearError] = useState<unknown>(null)
+  const [clearErrors, setClearErrors] = useState<Record<string, unknown>>({})
 
   async function refresh() {
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: queryKeys.settings }),
-      queryClient.invalidateQueries({ queryKey: queryKeys.githubSettings }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.repos }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.oidcStatus }),
       queryClient.invalidateQueries({ queryKey: queryKeys.health }),
       queryClient.invalidateQueries({ queryKey: queryKeys.setupStatus }),
     ])
@@ -514,7 +470,11 @@ function SettingsConsole() {
   }
 
   async function runClear(target: ClearTarget) {
-    setClearError(null)
+    setClearErrors((previous) => {
+      const next = { ...previous }
+      delete next[target.path]
+      return next
+    })
     try {
       const result = await apiFetch(
         target.path,
@@ -524,7 +484,7 @@ function SettingsConsole() {
       toast.success(result.message ?? `${target.button} done`)
       await refresh()
     } catch (caught) {
-      setClearError(caught)
+      setClearErrors((previous) => ({ ...previous, [target.path]: caught }))
     }
   }
 
@@ -541,9 +501,6 @@ function SettingsConsole() {
   }
 
   const values = settings.data
-  const extraKeys = Object.keys(values)
-    .filter((key) => !KNOWN_KEYS.has(key))
-    .sort()
 
   return (
     <div className="flex flex-col gap-4">
@@ -576,9 +533,8 @@ function SettingsConsole() {
             <TabBody
               tab={id}
               values={values}
-              extraKeys={extraKeys}
               tests={tests}
-              clearError={clearError}
+              clearErrors={clearErrors}
               onSaved={handleSaved}
               onTest={(integration) => void runTest(integration)}
               onClear={setClearing}

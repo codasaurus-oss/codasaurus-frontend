@@ -142,11 +142,21 @@ function SettingField({ settingKey, label, value, onSaved }: SettingFieldProps) 
   const [checked, setChecked] = useState(isTrue(value))
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<unknown>(null)
+  const [notice, setNotice] = useState<string | null>(null)
 
   async function save(next: string): Promise<boolean> {
-    if (control === "password" && isMaskPlaceholder(next)) {
-      return false
+    if (control === "password") {
+      if (next.includes("•")) {
+        return false
+      }
+      if (next.includes("*")) {
+        setNotice(
+          "Masked and starred values are not submitted. Enter the secret itself."
+        )
+        return false
+      }
     }
+    setNotice(null)
     setSaving(true)
     setError(null)
     try {
@@ -155,7 +165,11 @@ function SettingField({ settingKey, label, value, onSaved }: SettingFieldProps) 
         { method: "PUT", body: JSON.stringify({ value: next }) },
         settingSaveSchema
       )
-      toast.success(`${label} saved`)
+      if (result.skipped === "unchanged") {
+        toast.message(`${label} unchanged`)
+      } else {
+        toast.success(`${label} saved`)
+      }
       if (control === "password") {
         setDraft("")
       }
@@ -242,13 +256,21 @@ function SettingField({ settingKey, label, value, onSaved }: SettingFieldProps) 
                 : undefined
           }
           value={draft}
-          onChange={(event) => setDraft(event.target.value)}
+          onChange={(event) => {
+            setDraft(event.target.value)
+            setNotice(null)
+          }}
         />
       )}
       {control === "password" ? (
         <FieldDescription>
           Leave blank to keep the stored value; it is never shown again.
         </FieldDescription>
+      ) : null}
+      {notice ? (
+        <p role="status" className="text-xs text-warning">
+          {notice}
+        </p>
       ) : null}
       <div className="flex flex-wrap items-center gap-2">
         <Button
