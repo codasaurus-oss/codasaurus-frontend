@@ -1,0 +1,369 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react"
+import { MemoryRouter, Route, Routes } from "react-router"
+import { afterEach, describe, expect, it, vi } from "vitest"
+
+import { AuthProvider } from "@/lib/auth/auth-context"
+import {
+  reviewQueryOptions,
+  reviewsQueryOptions,
+} from "@/lib/api/queries"
+import ReviewDetailRoute from "@/routes/review-detail"
+import ReviewsRoute from "@/routes/reviews"
+
+const repo = {
+  id: 1,
+  github_id: 42,
+  full_name: "acme/web",
+  owner: "acme",
+  name: "web",
+  default_branch: "main",
+  installation_id: 7,
+  private: false,
+  active: true,
+  config_json: null,
+  created_at: "2026-11-20T10:00:00Z",
+  updated_at: "2026-11-20T10:00:00Z",
+}
+
+const review = {
+  id: 42,
+  repo_id: 1,
+  pr_number: 7,
+  pr_title: "Harden auth",
+  pr_author: "ada",
+  pr_base_branch: "main",
+  pr_head_branch: "feature",
+  pr_head_sha: "abcdef1234567890",
+  status: "passed",
+  summary_json: null,
+  started_at: "2026-11-23T10:00:00Z",
+  completed_at: "2026-11-23T10:00:42Z",
+  created_at: "2026-11-23T09:59:00Z",
+  repo_full_name: "acme/web",
+}
+
+const findings = [
+  {
+    id: 1,
+    review_id: 42,
+    fingerprint: "fp-1234567890",
+    file_path: "src/auth.rs",
+    line_start: 10,
+    line_end: 12,
+    column_start: null,
+    column_end: null,
+    severity: "blocking",
+    detector: "secrets",
+    rule_id: "hardcoded-key",
+    message: "Hardcoded API key",
+    suggested_fix: "Read the key from the environment",
+    code_snippet: 'let key = "sk-live";',
+    context: null,
+    category: null,
+    confidence: 92,
+    judge_rationale: "The literal matches a live key prefix.",
+    created_at: "2026-11-23T10:00:20Z",
+  },
+  {
+    id: 2,
+    review_id: 42,
+    fingerprint: null,
+    file_path: "src/db.rs",
+    line_start: 4,
+    line_end: 4,
+    column_start: null,
+    column_end: null,
+    severity: "warning",
+    detector: "vulnerabilities",
+    rule_id: "sql-injection",
+    message: "Query built from user input",
+    suggested_fix: null,
+    code_snippet: null,
+    context: null,
+    category: null,
+    confidence: null,
+    judge_rationale: null,
+    created_at: "2026-11-23T10:00:21Z",
+  },
+]
+
+function detail(status = "passed", overrides: Record<string, unknown> = {}) {
+  return {
+    review: { ...review, status, ...overrides },
+    findings,
+    summary: {
+      finding_count: findings.length,
+      file_count: 2,
+      by_severity: { blocking: 1, warning: 1 },
+      by_detector: { secrets: 1, vulnerabilities: 1 },
+      duration_secs: 42,
+    },
+  }
+}
+
+function jsonResponse(body: unknown, init: ResponseInit = {}) {
+  return new Response(JSON.stringify(body), {
+    status: 200,
+    headers: { "Content-Type": "application/json" },
+    ...init,
+  })
+}
+
+function stubApi(options: { role?: string; detail?: object; reviews?: object } = {}) {
+  const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+    const url = String(input)
+    const method = init?.method ?? "GET"
+    if (url === "/api/auth/me") {
+      return Promise.resolve(
+        jsonResponse({
+          authenticated: true,
+          user: {
+            email: `${options.role ?? "owner"}@example.com`,
+            role: options.role ?? "owner",
+            auth_provider: "local",
+            is_bootstrap: false,
+          },
+        })
+      )
+    }
+    if (url === "/api/repos") {
+      return Promise.resolve(jsonResponse([repo]))
+    }
+    if (url === "/api/reviews/dismiss" && method === "POST") {
+      return Promise.resolve(jsonResponse({ status: "ok" }))
+    }
+    if (url === "/api/reviews/42") {
+      return Promise.resolve(jsonResponse(options.detail ?? detail()))
+    }
+    if (url.startsWith("/api/reviews?")) {
+      if (options.reviews) {
+        return Promise.resolve(jsonResponse(options.reviews))
+      }
+      const offset = Number(new URLSearchParams(url.split("?")[1]).get("offset"))
+      const secondPage = offset === 20
+      return Promise.resolve(
+        jsonResponse({
+          reviews: [
+            {
+              ...review,
+              id: secondPage ? 43 : 42,
+              pr_number: secondPage ? 8 : 7,
+            },
+          ],
+          total: 2,
+          total_pages: 2,
+          limit: 20,
+          offset,
+        })
+      )
+    }
+    return Promise.resolve(
+      jsonResponse(
+        { error: `Unmatched request: ${method} ${url}` },
+        { status: 500 }
+      )
+    )
+  })
+  vi.stubGlobal("fetch", fetchMock)
+  return fetchMock
+}
+
+function newClient() {
+  return new QueryClient({ defaultOptions: { queries: { retry: false } } })
+}
+
+function renderReviews(client = newClient()) {
+  render(
+    <QueryClientProvider client={client}>
+      <AuthProvider>
+        <MemoryRouter>
+          <ReviewsRoute />
+        </MemoryRouter>
+      </AuthProvider>
+    </QueryClientProvider>
+  )
+  return client
+}
+
+function renderDetail(client = newClient()) {
+  render(
+    <QueryClientProvider client={client}>
+      <AuthProvider>
+        <MemoryRouter initialEntries={["/app/reviews/42"]}>
+          <Routes>
+            <Route path="/app/reviews/:id" element={<ReviewDetailRoute />} />
+          </Routes>
+        </MemoryRouter>
+      </AuthProvider>
+    </QueryClientProvider>
+  )
+  return client
+}
+
+afterEach(() => {
+  cleanup()
+  vi.clearAllMocks()
+  vi.unstubAllGlobals()
+})
+
+describe("reviews list", () => {
+  it("builds the list query from repo, status, limit and offset", async () => {
+    const fetchMock = stubApi()
+    const client = newClient()
+
+    await client.fetchQuery(
+      reviewsQueryOptions({ repoId: 3, status: "failed", limit: 20, offset: 40 })
+    )
+
+    expect(String(fetchMock.mock.calls.at(-1)?.[0])).toBe(
+      "/api/reviews?limit=20&offset=40&repo_id=3&status=failed"
+    )
+  })
+
+  it("requests the next page with the right offset", async () => {
+    const fetchMock = stubApi()
+    renderReviews()
+
+    expect(await screen.findByRole("link", { name: "#7" })).toBeInTheDocument()
+    fireEvent.click(screen.getByLabelText("Go to next page"))
+
+    await waitFor(() => {
+      const next = fetchMock.mock.calls.find(([input]) =>
+        String(input).includes("offset=20")
+      )
+      expect(next).toBeDefined()
+    })
+    expect(await screen.findByRole("link", { name: "#8" })).toBeInTheDocument()
+  })
+
+  it("shows an empty state when no reviews exist", async () => {
+    stubApi({
+      reviews: { reviews: [], total: 0, total_pages: 0, limit: 20, offset: 0 },
+    })
+    renderReviews()
+
+    expect(await screen.findByText("No reviews")).toBeInTheDocument()
+  })
+})
+
+describe("review detail", () => {
+  it("polls pending and running reviews every ten seconds, then stops", () => {
+    const refetchInterval = reviewQueryOptions(42).refetchInterval
+    if (typeof refetchInterval !== "function") {
+      throw new Error("expected a polling function")
+    }
+    const intervalFor = (status: string) =>
+      refetchInterval({ state: { data: detail(status) } } as never)
+
+    expect(intervalFor("pending")).toBe(10_000)
+    expect(intervalFor("running")).toBe(10_000)
+    expect(intervalFor("passed")).toBe(false)
+  })
+
+  it("renders a null summary_json without crashing", async () => {
+    stubApi({ detail: detail("passed", { summary_json: null }) })
+    renderDetail()
+
+    expect(
+      await screen.findByRole("heading", { name: "Findings" })
+    ).toBeInTheDocument()
+  })
+
+  it("renders a malformed summary_json without crashing", async () => {
+    stubApi({ detail: detail("passed", { summary_json: "{not json" }) })
+    renderDetail()
+
+    expect(
+      await screen.findByRole("heading", { name: "Findings" })
+    ).toBeInTheDocument()
+  })
+
+  it("groups findings under their file", async () => {
+    stubApi()
+    renderDetail()
+
+    expect(await screen.findByText("src/auth.rs")).toBeInTheDocument()
+    expect(screen.getByText("src/db.rs")).toBeInTheDocument()
+    expect(screen.getByText("Hardcoded API key")).toBeInTheDocument()
+    expect(screen.getByText("Query built from user input")).toBeInTheDocument()
+    expect(screen.getByText(/Suggested fix:/)).toBeInTheDocument()
+    expect(screen.getByText(/Rationale:/)).toBeInTheDocument()
+  })
+
+  it("shows a skeleton while a review is running", async () => {
+    stubApi({ detail: detail("running") })
+    renderDetail()
+
+    expect(
+      await screen.findByText(/Review in progress/)
+    ).toBeInTheDocument()
+  })
+
+  it("links to the SARIF export", async () => {
+    stubApi()
+    renderDetail()
+
+    const link = await screen.findByRole("link", { name: "Download SARIF" })
+    expect(link).toHaveAttribute("href", "/api/reviews/42/sarif")
+    expect(link).toHaveAttribute("download", "review-42.sarif")
+  })
+
+  it("hides dismiss from a viewer", async () => {
+    stubApi({ role: "viewer" })
+    renderDetail()
+
+    expect(await screen.findByText("Hardcoded API key")).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: /^Dismiss/ })).toBeNull()
+  })
+
+  it("disables dismiss when the finding has no fingerprint", async () => {
+    stubApi({ role: "maintainer" })
+    renderDetail()
+
+    const button = await screen.findByRole("button", {
+      name: "Dismiss sql-injection",
+    })
+    expect(button).toBeDisabled()
+    expect(button).toHaveAttribute(
+      "title",
+      "This finding has no fingerprint, so it cannot be dismissed."
+    )
+  })
+
+  it("sends fingerprint, file, detector, PR and message when dismissing", async () => {
+    const fetchMock = stubApi({ role: "maintainer" })
+    renderDetail()
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Dismiss hardcoded-key" })
+    )
+
+    fireEvent.change(await screen.findByLabelText(/Message/), {
+      target: { value: "Test fixture key" },
+    })
+    fireEvent.click(screen.getByRole("button", { name: "Confirm" }))
+
+    await waitFor(() => {
+      const post = fetchMock.mock.calls.find(
+        ([input, init]) =>
+          String(input) === "/api/reviews/dismiss" && init?.method === "POST"
+      )
+      expect(post).toBeDefined()
+      expect(JSON.parse(String(post?.[1]?.body))).toEqual({
+        fingerprint: "fp-1234567890",
+        detector: "secrets",
+        file: "src/auth.rs",
+        pr_number: 7,
+        repo: "acme/web",
+        message: "Test fixture key",
+      })
+    })
+  })
+})

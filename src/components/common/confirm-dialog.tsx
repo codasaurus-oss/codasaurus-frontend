@@ -1,3 +1,5 @@
+import type { ReactNode } from "react"
+
 import {
   AlertDialog,
   AlertDialogAction,
@@ -16,6 +18,7 @@ type ConfirmDialogProps = {
   description: string
   onConfirm: () => void
   destructive?: boolean
+  children?: ReactNode
 }
 
 function ConfirmDialog({
@@ -25,6 +28,7 @@ function ConfirmDialog({
   description,
   onConfirm,
   destructive = false,
+  children,
 }: ConfirmDialogProps) {
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
@@ -33,6 +37,7 @@ function ConfirmDialog({
           <AlertDialogTitle>{title}</AlertDialogTitle>
           <AlertDialogDescription>{description}</AlertDialogDescription>
         </AlertDialogHeader>
+        {children}
         <AlertDialogFooter>
           <AlertDialogCancel>Cancel</AlertDialogCancel>
           <AlertDialogAction

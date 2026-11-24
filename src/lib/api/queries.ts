@@ -7,6 +7,8 @@ import {
   oidcStatusSchema,
   repoListSchema,
   repoSchema,
+  reviewDetailSchema,
+  reviewsResponseSchema,
   setupStatusSchema,
   statsSchema,
 } from "@/lib/api/schemas"
@@ -81,6 +83,37 @@ const repoQueryOptions = (id: number) =>
     queryFn: () => apiFetch(`/api/repos/${id}`, undefined, repoSchema),
   })
 
+const reviewsQueryOptions = (filters: ReviewFilters) =>
+  queryOptions({
+    queryKey: queryKeys.reviewList(filters),
+    queryFn: () => {
+      const params = new URLSearchParams()
+      params.set("limit", String(filters.limit ?? 20))
+      params.set("offset", String(filters.offset ?? 0))
+      if (filters.repoId !== undefined) {
+        params.set("repo_id", String(filters.repoId))
+      }
+      if (filters.status) {
+        params.set("status", filters.status)
+      }
+      return apiFetch(
+        `/api/reviews?${params.toString()}`,
+        undefined,
+        reviewsResponseSchema
+      )
+    },
+  })
+
+const reviewQueryOptions = (id: number) =>
+  queryOptions({
+    queryKey: queryKeys.review(id),
+    queryFn: () => apiFetch(`/api/reviews/${id}`, undefined, reviewDetailSchema),
+    refetchInterval: (query) => {
+      const status = query.state.data?.review.status
+      return status === "pending" || status === "running" ? 10_000 : false
+    },
+  })
+
 const healthQueryOptions = queryOptions({
   queryKey: queryKeys.health,
   queryFn: () => apiFetch("/health", undefined, healthResponseSchema),
@@ -95,6 +128,8 @@ export {
   queryKeys,
   repoQueryOptions,
   reposQueryOptions,
+  reviewQueryOptions,
+  reviewsQueryOptions,
   setupStatusQueryOptions,
   statsQueryOptions,
 }
