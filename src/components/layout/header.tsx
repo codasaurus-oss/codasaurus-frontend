@@ -65,7 +65,7 @@ function Header() {
     try {
       await apiFetch("/api/auth/logout", { method: "POST" })
     } catch {
-      toast.error("Could not sign out on the server. Your local session was cleared.")
+      toast.error("Could not sign out on the server. You may still be signed in here.")
     } finally {
       // The guard redirects to login once the local user is cleared.
       setUser(null)

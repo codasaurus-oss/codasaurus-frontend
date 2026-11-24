@@ -4,14 +4,16 @@ const timestamp = z.string()
 
 const roleSchema = z.enum(["owner", "maintainer", "viewer"])
 
+// Old rows can still carry the pre-rename "admin" role.
+const normalizedRoleSchema = z
+  .string()
+  .transform((role) => (role === "admin" ? "owner" : role))
+  .pipe(roleSchema)
+
 const userInfoSchema = z
   .object({
     email: z.string(),
-    // Old rows can still carry the pre-rename "admin" role.
-    role: z
-      .string()
-      .transform((role) => (role === "admin" ? "owner" : role))
-      .pipe(roleSchema),
+    role: normalizedRoleSchema,
     auth_provider: z.string().nullish(),
     is_bootstrap: z.boolean().default(false),
   })
@@ -178,7 +180,7 @@ const userSchema = z
   .object({
     id: z.number(),
     email: z.string(),
-    role: roleSchema,
+    role: normalizedRoleSchema,
     auth_provider: z.string(),
     is_bootstrap: z.boolean(),
     created_at: timestamp,

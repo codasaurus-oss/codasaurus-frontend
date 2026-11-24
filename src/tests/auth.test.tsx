@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 import { ErrorState } from "@/components/common/error-state"
 import { apiFetch } from "@/lib/api/client"
 import { ApiError } from "@/lib/api/errors"
-import { meResponseSchema } from "@/lib/api/schemas"
+import { meResponseSchema, usersResponseSchema } from "@/lib/api/schemas"
 import { AuthProvider, useAuth } from "@/lib/auth/auth-context"
 import { can } from "@/lib/auth/roles"
 import { RequireAuth } from "@/routes/router"
@@ -179,5 +179,20 @@ describe("auth gating", () => {
     })
 
     expect(me.user?.role).toBe("owner")
+
+    const users = usersResponseSchema.parse({
+      users: [
+        {
+          id: 1,
+          email: "admin@example.com",
+          role: "admin",
+          auth_provider: "local",
+          is_bootstrap: false,
+          created_at: "2026-11-20T10:00:00Z",
+        },
+      ],
+    })
+
+    expect(users.users[0].role).toBe("owner")
   })
 })
