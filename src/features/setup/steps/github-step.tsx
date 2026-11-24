@@ -1,3 +1,4 @@
+import { useQueryClient } from "@tanstack/react-query"
 import { useState } from "react"
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
@@ -10,14 +11,37 @@ import {
 } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Textarea } from "@/components/ui/textarea"
 import { StepCard } from "@/features/setup/step-card"
 import { githubStep, type SetupStepProps } from "@/features/setup/steps"
 import { apiFetch } from "@/lib/api/client"
+import { queryKeys } from "@/lib/api/queries"
 import { setupResultSchema } from "@/lib/api/schemas"
 
-type GithubStepProps = SetupStepProps & { installUrl?: string | null }
+type GithubStepProps = SetupStepProps & {
+  installUrl?: string | null
+  publicUrl: string
+}
 
-function GithubStep({ complete, installUrl, onComplete }: GithubStepProps) {
+// Mirrors the server's is_local_url (src/api/setup.rs) so the manifest button
+// is gated on the same rule that decides the callback URL GitHub receives.
+function isLocalUrl(url: string) {
+  const lower = url.toLowerCase()
+  return (
+    lower.startsWith("http://localhost") ||
+    lower.startsWith("http://127.") ||
+    lower.startsWith("http://[::1]") ||
+    lower.includes("://localhost:")
+  )
+}
+
+function GithubStep({
+  complete,
+  installUrl,
+  publicUrl,
+  onComplete,
+}: GithubStepProps) {
+  const client = useQueryClient()
   const [appId, setAppId] = useState("")
   const [privateKey, setPrivateKey] = useState("")
   const [webhookSecret, setWebhookSecret] = useState("")
@@ -25,6 +49,7 @@ function GithubStep({ complete, installUrl, onComplete }: GithubStepProps) {
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const localhost = isLocalUrl(publicUrl)
 
   async function saveManual() {
     setBusy(true)
@@ -45,7 +70,9 @@ function GithubStep({ complete, installUrl, onComplete }: GithubStepProps) {
         setupResultSchema
       )
       setMessage(result.message ?? "GitHub App credentials saved")
-      onComplete()
+      // Stay on this step: the install link only exists once the credentials
+      // are saved, so advancing here would skip the only pre-owner install CTA.
+      await client.invalidateQueries({ queryKey: queryKeys.setupStatus })
     } catch (caught) {
       setError(
         caught instanceof Error
@@ -69,7 +96,22 @@ function GithubStep({ complete, installUrl, onComplete }: GithubStepProps) {
             GitHub creates the app from a manifest and returns here when it is
             done. You will leave this page for a moment.
           </p>
+          <div className="flex flex-wrap items-center gap-2 text-sm">
+            <span className="text-muted-foreground">Public URL</span>
+            <code className="font-mono text-xs">{publicUrl}</code>
+          </div>
+          {localhost ? (
+            <Alert>
+              <AlertTitle>Localhost URL</AlertTitle>
+              <AlertDescription>
+                GitHub cannot reach a localhost URL, so it cannot build the app
+                manifest. Save a public HTTPS URL in the Database step, or use
+                the Manual tab.
+              </AlertDescription>
+            </Alert>
+          ) : null}
           <Button
+            disabled={localhost}
             onClick={() => {
               window.location.href = "/api/setup/github/manifest-page"
             }}
@@ -91,8 +133,10 @@ function GithubStep({ complete, installUrl, onComplete }: GithubStepProps) {
               <FieldLabel htmlFor="setup-github-private-key">
                 Private key
               </FieldLabel>
-              <Input
+              <Textarea
                 id="setup-github-private-key"
+                className="font-mono text-xs"
+                rows={6}
                 value={privateKey}
                 onChange={(event) => setPrivateKey(event.target.value)}
               />
@@ -133,15 +177,20 @@ function GithubStep({ complete, installUrl, onComplete }: GithubStepProps) {
         </TabsContent>
       </Tabs>
 
-      {installUrl ? (
-        <Button
-          variant="outline"
-          render={
-            <a href={installUrl} target="_blank" rel="noreferrer" />
-          }
-        >
-          Install the app on GitHub
-        </Button>
+      {installUrl || complete ? (
+        <div className="flex flex-wrap gap-2">
+          {installUrl ? (
+            <Button
+              variant="outline"
+              render={
+                <a href={installUrl} target="_blank" rel="noreferrer" />
+              }
+            >
+              Install the app on GitHub
+            </Button>
+          ) : null}
+          {complete ? <Button onClick={onComplete}>Continue</Button> : null}
+        </div>
       ) : null}
 
       {message ? (

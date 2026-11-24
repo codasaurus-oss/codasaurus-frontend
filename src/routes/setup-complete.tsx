@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query"
 import { useState } from "react"
+import { Navigate } from "react-router"
 
 import { ErrorState } from "@/components/common/error-state"
 import { LoadingState } from "@/components/common/loading-state"
@@ -17,9 +18,10 @@ import { setupStatusQueryOptions } from "@/lib/api/queries"
 import { apiFetch } from "@/lib/api/client"
 import { syncResultSchema } from "@/lib/api/schemas"
 import { useAuth } from "@/lib/auth/auth-context"
+import { can } from "@/lib/auth/roles"
 
 function SetupCompleteRoute() {
-  const { status: authStatus } = useAuth()
+  const { status: authStatus, user } = useAuth()
   const setup = useQuery(setupStatusQueryOptions)
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -66,7 +68,12 @@ function SetupCompleteRoute() {
     )
   }
 
+  if (!setup.data.complete) {
+    return <Navigate to="/setup" replace />
+  }
+
   const authenticated = authStatus === "authenticated"
+  const canSync = can(user?.role, "maintain")
   const installUrl = setup.data.github_install_url
 
   return (
@@ -96,15 +103,17 @@ function SetupCompleteRoute() {
             ) : null}
           </CardContent>
           <CardFooter className="flex flex-wrap gap-2">
-            {authenticated ? (
+            {authStatus === "loading" ? null : authenticated ? (
               <>
-                <Button
-                  variant="outline"
-                  onClick={() => void syncRepos()}
-                  disabled={busy}
-                >
-                  {busy ? "Syncing…" : "Sync repositories"}
-                </Button>
+                {canSync ? (
+                  <Button
+                    variant="outline"
+                    onClick={() => void syncRepos()}
+                    disabled={busy}
+                  >
+                    {busy ? "Syncing…" : "Sync repositories"}
+                  </Button>
+                ) : null}
                 <Button render={<a href="#/app/dashboard" />}>
                   Open dashboard
                 </Button>

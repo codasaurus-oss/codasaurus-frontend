@@ -92,6 +92,7 @@ function SetupRoute() {
           <GithubStep
             complete={status.github}
             installUrl={status.github_install_url}
+            publicUrl={status.public_url}
             onComplete={refresh}
           />
         )

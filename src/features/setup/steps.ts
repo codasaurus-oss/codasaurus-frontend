@@ -30,10 +30,6 @@ type SetupStep = (typeof setupSteps)[number]
 type SetupStepId = SetupStep["id"]
 type SetupStepProps = { complete: boolean; onComplete: () => void }
 
-function isStepComplete(status: SetupStatus, id: SetupStepId) {
-  return status[id]
-}
-
 function completedCount(status: SetupStatus) {
   return setupSteps.filter((step) => status[step.id]).length
 }
@@ -56,7 +52,6 @@ export {
   databaseStep,
   firstIncompleteStep,
   githubStep,
-  isStepComplete,
   isStepUnlocked,
   llmStep,
   setupSteps,

@@ -65,6 +65,7 @@ function renderSetupComplete(client: QueryClient) {
         <MemoryRouter initialEntries={["/setup/complete"]}>
           <Routes>
             <Route path="/setup/complete" element={<SetupCompleteRoute />} />
+            <Route path="/setup" element={<div>setup destination</div>} />
           </Routes>
         </MemoryRouter>
       </AuthProvider>
@@ -178,6 +179,87 @@ describe("setup wizard", () => {
       "href",
       "#/login"
     )
+  })
+
+  it("redirects to setup when the wizard is still incomplete", async () => {
+    stubFetch((url) => {
+      if (url === "/api/setup/status") {
+        return jsonResponse(baseStatus)
+      }
+      return jsonResponse({ authenticated: false, user: null })
+    })
+    renderSetupComplete(newClient())
+
+    expect(await screen.findByText("setup destination")).toBeInTheDocument()
+  })
+
+  it("hides repository sync from a viewer", async () => {
+    stubFetch((url) => {
+      if (url === "/api/setup/status") {
+        return jsonResponse({
+          ...baseStatus,
+          llm: true,
+          github: true,
+          admin: true,
+          complete: true,
+        })
+      }
+      return jsonResponse({
+        authenticated: true,
+        user: {
+          email: "viewer@example.com",
+          role: "viewer",
+          auth_provider: "local",
+          is_bootstrap: false,
+        },
+      })
+    })
+    renderSetupComplete(newClient())
+
+    expect(
+      await screen.findByRole("link", { name: "Open dashboard" })
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByRole("button", { name: "Sync repositories" })
+    ).toBeNull()
+  })
+
+  it("keeps the PEM line breaks from the private key field", async () => {
+    const pem =
+      "-----BEGIN PRIVATE KEY-----\nMIIBVwIBADANBgkqhkiG9w0B\n-----END PRIVATE KEY-----"
+    const fetchMock = stubFetch((url, init) => {
+      if (url === "/api/setup/status") {
+        return jsonResponse({ ...baseStatus, llm: true })
+      }
+      if (url === "/api/setup/github" && init?.method === "POST") {
+        return jsonResponse({ status: "ok" })
+      }
+      return jsonResponse({})
+    })
+    renderSetup(newClient())
+
+    fireEvent.click(await screen.findByRole("tab", { name: "Manual" }))
+    fireEvent.change(await screen.findByLabelText("App ID"), {
+      target: { value: "12345" },
+    })
+    expect(screen.getByLabelText("Private key").tagName).toBe("TEXTAREA")
+    fireEvent.change(screen.getByLabelText("Private key"), {
+      target: { value: pem },
+    })
+    fireEvent.change(screen.getByLabelText("Webhook secret"), {
+      target: { value: "webhook-secret" },
+    })
+    fireEvent.click(screen.getByRole("button", { name: "Save credentials" }))
+
+    expect(
+      await screen.findByText("GitHub App credentials saved")
+    ).toBeInTheDocument()
+    const post = fetchMock.mock.calls.find(
+      ([url, init]) =>
+        String(url) === "/api/setup/github" && init?.method === "POST"
+    )
+    expect(post).toBeDefined()
+    expect(JSON.parse(String(post?.[1]?.body)).private_key).toBe(pem)
   })
 
   it("sends the bootstrap secret when creating the first owner", async () => {
