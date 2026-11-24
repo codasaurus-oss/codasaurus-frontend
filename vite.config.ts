@@ -15,6 +15,7 @@ export default defineConfig({
   server: {
     proxy: {
       '/api': process.env.CODASAURUS_API ?? 'http://127.0.0.1:3000',
+      '/health': process.env.CODASAURUS_API ?? 'http://127.0.0.1:3000',
     },
   },
 })

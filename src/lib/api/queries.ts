@@ -71,6 +71,7 @@ const healthQueryOptions = queryOptions({
   queryKey: queryKeys.health,
   queryFn: () => apiFetch("/health", undefined, healthResponseSchema),
   staleTime: 30_000,
+  refetchInterval: 30_000,
 })
 
 export {
