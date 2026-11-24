@@ -153,14 +153,19 @@ function AcceptInviteForm({
                 autoComplete="email"
                 readOnly={invite.email_locked}
                 aria-invalid={Boolean(errors.email)}
+                aria-describedby={
+                  errors.email
+                    ? "invite-email-description invite-email-error"
+                    : "invite-email-description"
+                }
                 {...form.register("email")}
               />
-              <FieldDescription>
+              <FieldDescription id="invite-email-description">
                 {invite.email_locked
                   ? "This invite is locked to the email above."
                   : "Use the email address you want to sign in with."}
               </FieldDescription>
-              <FieldError errors={[errors.email]} />
+              <FieldError id="invite-email-error" errors={[errors.email]} />
             </Field>
             <Field data-invalid={Boolean(errors.password)}>
               <FieldLabel htmlFor="invite-password">Password</FieldLabel>
@@ -169,12 +174,17 @@ function AcceptInviteForm({
                 type="password"
                 autoComplete="new-password"
                 aria-invalid={Boolean(errors.password)}
+                aria-describedby={
+                  errors.password
+                    ? "invite-password-description invite-password-error"
+                    : "invite-password-description"
+                }
                 {...form.register("password")}
               />
-              <FieldDescription>
+              <FieldDescription id="invite-password-description">
                 At least 10 characters and different from your email.
               </FieldDescription>
-              <FieldError errors={[errors.password]} />
+              <FieldError id="invite-password-error" errors={[errors.password]} />
             </Field>
             <Field>
               <Button type="submit" disabled={form.formState.isSubmitting}>

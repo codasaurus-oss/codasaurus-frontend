@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query"
-import { useState } from "react"
+import { useEffect, useState } from "react"
 
 import { EmptyState } from "@/components/common/empty-state"
 import { ErrorState } from "@/components/common/error-state"
@@ -106,6 +106,14 @@ function AuditConsole() {
       offset: (page - 1) * PAGE_SIZE,
     })
   )
+
+  // Retention purges shrink the result set; a page past the new last one would
+  // otherwise keep requesting an offset the backend no longer has.
+  useEffect(() => {
+    if (audit.data && page > audit.data.total_pages) {
+      setPage(Math.max(1, audit.data.total_pages))
+    }
+  }, [audit.data, page])
 
   let content
   if (audit.isPending) {

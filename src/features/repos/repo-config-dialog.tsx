@@ -136,7 +136,11 @@ function RepoEditor({
         <Textarea
           id="repo-config-json"
           aria-label="Config JSON"
-          aria-describedby={configError ? "repo-config-error" : undefined}
+          aria-describedby={
+            [configError ? "repo-config-error" : null, configWarning ? "repo-config-warning" : null]
+              .filter(Boolean)
+              .join(" ") || undefined
+          }
           className="min-h-40 font-mono text-xs"
           spellCheck={false}
           value={configText}
@@ -149,7 +153,9 @@ function RepoEditor({
           </p>
         ) : null}
         {configWarning ? (
-          <p className="text-xs text-warning">{configWarning}</p>
+          <p id="repo-config-warning" className="text-xs text-warning">
+            {configWarning}
+          </p>
         ) : null}
       </div>
       <div className="flex items-center justify-between gap-2 px-4">

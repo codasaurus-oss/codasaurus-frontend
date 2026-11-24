@@ -203,6 +203,13 @@ describe("repositories", () => {
     expect(
       await screen.findByText("This is valid JSON but not an object.")
     ).toBeInTheDocument()
+    expect(editor).toHaveAttribute(
+      "aria-describedby",
+      "repo-config-warning"
+    )
+    expect(
+      screen.getByText("This is valid JSON but not an object.")
+    ).toHaveAttribute("id", "repo-config-warning")
     expect(screen.getByRole("button", { name: "Save changes" })).toBeEnabled()
   })
 

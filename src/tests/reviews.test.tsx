@@ -390,6 +390,23 @@ describe("review detail", () => {
     expect(await screen.findByText("No findings")).toBeInTheDocument()
   })
 
+  it("shows a note instead of an empty container when findings are ungrouped", async () => {
+    stubApi({
+      detail: detail("passed"),
+      findings: { review_id: 42, findings_by_file: {}, total_findings: 3 },
+    })
+    renderDetail()
+
+    expect(
+      await screen.findByText(
+        "This review reports findings, but none are available to display."
+      )
+    ).toBeInTheDocument()
+    expect(
+      document.querySelector('[data-slot="collapsible"]')
+    ).toBeNull()
+  })
+
   it("shows a skeleton while a review is running", async () => {
     stubApi({ detail: detail("running") })
     renderDetail()

@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query"
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Navigate, useNavigate } from "react-router"
 
 import { ErrorState } from "@/components/common/error-state"
@@ -38,6 +38,15 @@ function SetupRoute() {
   const setup = useQuery(setupStatusQueryOptions)
   const [selected, setSelected] = useState<SetupStepId | null>(null)
   const [finishing, setFinishing] = useState(false)
+
+  // The flag only covers the hand-off to /setup/complete. A status that comes
+  // back incomplete means the hand-off did not stick, so the next completion
+  // must be able to redirect again.
+  useEffect(() => {
+    if (!setup.data?.complete) {
+      setFinishing(false)
+    }
+  }, [setup.data?.complete])
 
   if (setup.isPending) {
     return (

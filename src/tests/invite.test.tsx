@@ -115,6 +115,36 @@ describe("invite route", () => {
     ).toBeInTheDocument()
   })
 
+  it("associates descriptions and errors with the invite fields", async () => {
+    stubInviteFetch(
+      jsonResponse({
+        email: null,
+        role: "viewer",
+        expires_at: expiresAt,
+        email_locked: false,
+      })
+    )
+    renderInvite(newClient())
+
+    const email = await screen.findByLabelText("Email")
+    expect(email).toHaveAttribute(
+      "aria-describedby",
+      "invite-email-description"
+    )
+    expect(
+      screen.getByText("Use the email address you want to sign in with.")
+    ).toHaveAttribute("id", "invite-email-description")
+
+    fireEvent.click(screen.getByRole("button", { name: "Accept invite" }))
+
+    const emailError = await screen.findByText("Enter a valid email address")
+    expect(email).toHaveAttribute(
+      "aria-describedby",
+      "invite-email-description invite-email-error"
+    )
+    expect(emailError).toHaveAttribute("id", "invite-email-error")
+  })
+
   it("rejects a password shorter than ten characters", async () => {
     stubInviteFetch(
       jsonResponse({

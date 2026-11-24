@@ -236,6 +236,10 @@ function ReviewDetailRoute() {
             title="No findings"
             description="This review completed without any findings."
           />
+        ) : Object.keys(findingsQuery.data.findings_by_file).length === 0 ? (
+          <p className="text-sm text-muted-foreground">
+            This review reports findings, but none are available to display.
+          </p>
         ) : (
           <FindingsByFile
             findingsByFile={findingsQuery.data.findings_by_file}

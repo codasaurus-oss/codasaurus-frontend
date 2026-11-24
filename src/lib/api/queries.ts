@@ -29,7 +29,6 @@ type ReviewFilters = {
 }
 
 const queryKeys = {
-  me: ["me"] as const,
   health: ["health"] as const,
   oidcStatus: ["auth", "oidc-status"] as const,
   invite: (token: string) => ["invites", "detail", token] as const,

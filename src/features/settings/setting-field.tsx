@@ -145,16 +145,11 @@ function SettingField({ settingKey, label, value, onSaved }: SettingFieldProps) 
   const [notice, setNotice] = useState<string | null>(null)
 
   async function save(next: string): Promise<boolean> {
-    if (control === "password") {
-      if (next.includes("•")) {
-        return false
-      }
-      if (next.includes("*")) {
-        setNotice(
-          "Masked and starred values are not submitted. Enter the secret itself."
-        )
-        return false
-      }
+    if (control === "password" && (next.includes("•") || next.includes("*"))) {
+      setNotice(
+        "Masked and starred values are not submitted. Enter the secret itself."
+      )
+      return false
     }
     setNotice(null)
     setSaving(true)

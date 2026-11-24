@@ -150,6 +150,27 @@ describe("login route", () => {
     ).toBeInTheDocument()
   })
 
+  it("associates field errors with their inputs", async () => {
+    stubFetch((url) => {
+      if (url.includes("/api/auth/oidc/status")) {
+        return jsonResponse({ enabled: false })
+      }
+      return authenticatedResponse(false)
+    })
+    renderLogin(newClient())
+
+    fireEvent.click(await screen.findByRole("button", { name: "Sign in" }))
+
+    const email = screen.getByLabelText("Email")
+    const emailError = await screen.findByText("Enter a valid email address")
+    expect(email).toHaveAttribute("aria-describedby", "login-email-error")
+    expect(emailError).toHaveAttribute("id", "login-email-error")
+    expect(screen.getByLabelText("Password")).toHaveAttribute(
+      "aria-describedby",
+      "login-password-error"
+    )
+  })
+
   it("returns to the intended route after signing in", async () => {
     let authenticated = false
     stubFetch((url) => {

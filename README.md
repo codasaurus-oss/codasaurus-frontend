@@ -1,32 +1,105 @@
-# React + TypeScript + Vite
+# Codasaurus Dashboard
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+Web dashboard for [Codasaurus](https://github.com/codasaurus-oss/codasaurus), a Rust
+service that reviews pull requests with LLM agents and reports repository risk.
 
-Currently, two official plugins are available:
+This repository is the fresh React + shadcn interface. It is a static single-page
+app: the Rust backend serves the built `dist/` and exposes the API it calls.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## Stack
 
-## React Compiler
+| Layer | Choice |
+| --- | --- |
+| Build | Vite 8 |
+| UI | React 19, TypeScript 7, Tailwind CSS 4 |
+| Components | shadcn, Base UI, neutral base color (`components.json`) |
+| Routing | React Router 8, hash mode (`createHashRouter`) |
+| Data | TanStack Query 5 |
+| Forms | React Hook Form 7 with Zod 4 |
+| Unit tests | Vitest 5, Testing Library, jsdom |
+| End-to-end tests | Playwright 1.65, Chromium |
+| Lint | Oxlint |
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Prerequisites
 
-## Expanding the Oxlint configuration
+- Node.js >= 22.12. Installed dependencies declare it: `cn` requires `>=22`,
+  Vitest 5 requires `^22.12.0 || ^24.0.0 || >=26.0.0`, Vite 8 requires
+  `^20.19.0 || >=22.12.0`.
+- npm (the repo commits `package-lock.json`).
 
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
+## Scripts
 
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
+| Command | What it does |
+| --- | --- |
+| `npm run dev` | Vite dev server with API proxy |
+| `npm run build` | Type-check with `tsc -b`, then build to `dist/` |
+| `npm run preview` | Serve the production build locally |
+| `npm run lint` | Oxlint |
+| `npm test` | Vitest unit tests, one run |
+| `npm run test:e2e` | Playwright suite against the production build |
+
+## Local development
+
+```bash
+npm ci
+npm run dev
 ```
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+Vite proxies `/api` and `/health` to the backend. The default target is
+`http://127.0.0.1:3000`; point it elsewhere with `CODASAURUS_API`:
+
+```bash
+CODASAURUS_API=http://127.0.0.1:8080 npm run dev
+```
+
+Run the backend with `codasaurus serve` from the
+[backend repository](https://github.com/codasaurus-oss/codasaurus).
+
+## Production build and backend integration
+
+`npm run build` writes the static bundle to `dist/`. The backend does not build
+this repo at runtime:
+
+- The release workflow clones this repository at the ref named by the
+  `DASHBOARD_REF` variable, runs `npm ci` and `npm run build`, then copies
+  `dist` to `svelte-dashboard/dist`.
+- The backend Dockerfile does the same in a Node stage and copies the result to
+  `/app/svelte-dashboard/dist` in the runtime image.
+
+Set `DASHBOARD_REF` to the branch or tag whose build should ship.
+
+## Routes
+
+Routing uses hash URLs so the backend can serve one `index.html` for every path.
+Backend redirects depend on these routes; do not rename them without changing the
+backend:
+
+| Route | Reached from |
+| --- | --- |
+| `#/setup/github` | Setup flow and GitHub App callback |
+| `#/setup/complete` | Setup completion redirect |
+| `#/invite/:token` | Invite links sent to users |
+| `#/app/dashboard` | Post-login redirect |
+
+## Testing
+
+```bash
+npm test           # unit tests
+npm run test:e2e   # Playwright, Chromium only
+```
+
+The Playwright suite runs the production build through `vite preview` on
+`127.0.0.1:4173`. Critical flows in `src/tests/e2e/critical.spec.ts` intercept
+`/api/**` and `/health` with Playwright route mocks, so they exercise the
+frontend without a live backend.
+
+Install the browser once before the first run:
+
+```bash
+npx playwright install --with-deps chromium
+```
+
+## Links
+
+- Backend and release notes: <https://github.com/codasaurus-oss/codasaurus>
+- Issues for either repository: <https://github.com/codasaurus-oss/codasaurus/issues>

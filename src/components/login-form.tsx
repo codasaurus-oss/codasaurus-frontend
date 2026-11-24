@@ -102,9 +102,10 @@ function LoginForm({ from, oidcEnabled, className }: LoginFormProps) {
                   type="email"
                   autoComplete="email"
                   aria-invalid={Boolean(errors.email)}
+                  aria-describedby={errors.email ? "login-email-error" : undefined}
                   {...form.register("email")}
                 />
-                <FieldError errors={[errors.email]} />
+                <FieldError id="login-email-error" errors={[errors.email]} />
               </Field>
               <Field data-invalid={Boolean(errors.password)}>
                 <FieldLabel htmlFor="login-password">Password</FieldLabel>
@@ -113,9 +114,12 @@ function LoginForm({ from, oidcEnabled, className }: LoginFormProps) {
                   type="password"
                   autoComplete="current-password"
                   aria-invalid={Boolean(errors.password)}
+                  aria-describedby={
+                    errors.password ? "login-password-error" : undefined
+                  }
                   {...form.register("password")}
                 />
-                <FieldError errors={[errors.password]} />
+                <FieldError id="login-password-error" errors={[errors.password]} />
               </Field>
               <Field>
                 <Button type="submit" disabled={form.formState.isSubmitting}>

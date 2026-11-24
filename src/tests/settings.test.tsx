@@ -339,6 +339,30 @@ describe("settings", () => {
     expect(fetchMock).not.toHaveBeenCalled()
   })
 
+  it("warns instead of submitting a masked bullet draft", async () => {
+    const fetchMock = vi.fn()
+    vi.stubGlobal("fetch", fetchMock)
+
+    render(
+      <SettingField
+        settingKey="llm_api_key"
+        label="API key"
+        value="••••••••"
+        onSaved={vi.fn()}
+      />
+    )
+
+    fireEvent.change(screen.getByLabelText("API key"), {
+      target: { value: "••••••••" },
+    })
+    fireEvent.click(screen.getByRole("button", { name: "Replace API key" }))
+
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      "Masked and starred values are not submitted"
+    )
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
   it("clears only the metrics token with an empty value", async () => {
     const fetchMock = stubApi()
     renderSettings()

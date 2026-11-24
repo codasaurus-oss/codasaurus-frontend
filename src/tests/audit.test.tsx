@@ -40,7 +40,7 @@ function jsonResponse(body: unknown, status = 200) {
   })
 }
 
-function stubApi(role = "owner") {
+function stubApi(role = "owner", totalPages = () => 2) {
   const fetchMock = vi.fn((input: RequestInfo | URL) => {
     const url = String(input)
     if (url === "/api/auth/me") {
@@ -61,7 +61,7 @@ function stubApi(role = "owner") {
         jsonResponse({
           entries,
           total: 60,
-          total_pages: 2,
+          total_pages: totalPages(),
           limit: 50,
           offset: 0,
           retention_days: 30,
@@ -140,6 +140,33 @@ describe("audit", () => {
       ).toBe(true)
     })
     expect(screen.getByText("Page 2 of 2")).toBeInTheDocument()
+  })
+
+  it("clamps the page when the result set shrinks", async () => {
+    let pages = 3
+    const fetchMock = stubApi("owner", () => pages)
+    const client = renderAudit()
+
+    expect(await screen.findByText("user.login")).toBeInTheDocument()
+    fireEvent.click(screen.getByLabelText("Go to next page"))
+    fireEvent.click(await screen.findByLabelText("Go to next page"))
+
+    await waitFor(() => {
+      expect(
+        auditCalls(fetchMock).some((url) => url.includes("offset=100"))
+      ).toBe(true)
+    })
+    expect(await screen.findByText("Page 3 of 3")).toBeInTheDocument()
+
+    pages = 2
+    await client.invalidateQueries({ queryKey: ["audit"] })
+
+    await waitFor(() => {
+      expect(
+        auditCalls(fetchMock).some((url) => url.includes("offset=50"))
+      ).toBe(true)
+    })
+    expect(await screen.findByText("Page 2 of 2")).toBeInTheDocument()
   })
 
   it("shows JSON metadata as formatted text and never renders HTML", async () => {
