@@ -5,6 +5,8 @@ import {
   healthResponseSchema,
   inviteInfoSchema,
   oidcStatusSchema,
+  repoListSchema,
+  repoSchema,
   setupStatusSchema,
   statsSchema,
 } from "@/lib/api/schemas"
@@ -67,6 +69,18 @@ const statsQueryOptions = queryOptions({
   refetchInterval: 30_000,
 })
 
+const reposQueryOptions = queryOptions({
+  queryKey: queryKeys.repos,
+  queryFn: () => apiFetch("/api/repos", undefined, repoListSchema),
+  staleTime: 30_000,
+})
+
+const repoQueryOptions = (id: number) =>
+  queryOptions({
+    queryKey: queryKeys.repo(id),
+    queryFn: () => apiFetch(`/api/repos/${id}`, undefined, repoSchema),
+  })
+
 const healthQueryOptions = queryOptions({
   queryKey: queryKeys.health,
   queryFn: () => apiFetch("/health", undefined, healthResponseSchema),
@@ -79,6 +93,8 @@ export {
   inviteQueryOptions,
   oidcStatusQueryOptions,
   queryKeys,
+  repoQueryOptions,
+  reposQueryOptions,
   setupStatusQueryOptions,
   statsQueryOptions,
 }
