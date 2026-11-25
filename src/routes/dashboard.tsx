@@ -107,16 +107,20 @@ function Kpi({
   label,
   value,
   hint,
+  accent,
 }: {
   label: string
   value: string
   hint?: string
+  accent?: string
 }) {
   return (
     <Card size="sm">
       <CardHeader>
         <CardDescription>{label}</CardDescription>
-        <CardTitle className="text-2xl tabular-nums">{value}</CardTitle>
+        <CardTitle className={`text-2xl tabular-nums ${accent ?? ""}`}>
+          {value}
+        </CardTitle>
         {hint ? <p className="text-xs text-muted-foreground">{hint}</p> : null}
       </CardHeader>
     </Card>
@@ -293,20 +297,27 @@ function DashboardRoute() {
       />
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <Kpi label="Active repositories" value={formatCount(data.total_repos)} />
+        <Kpi
+          label="Active repositories"
+          value={formatCount(data.total_repos)}
+          accent="text-[var(--chart-1)]"
+        />
         <Kpi
           label="Reviews today"
           value={formatCount(data.total_reviews_today)}
+          accent="text-[var(--chart-2)]"
         />
         <Kpi
           label="Pass rate"
           value={formatPercent(data.pass_rate)}
           hint="last 30 days"
+          accent="text-[var(--chart-3)]"
         />
         <Kpi
           label="Findings"
           value={formatCount(data.total_findings)}
           hint="last 30 days"
+          accent="text-[var(--chart-5)]"
         />
       </div>
 

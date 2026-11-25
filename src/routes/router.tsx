@@ -39,14 +39,8 @@ function RouteError() {
   )
 }
 
-// A caught render error must not survive navigation, so remount the boundary per path.
 function RootLayout() {
-  const { pathname } = useLocation()
-  return (
-    <ErrorBoundary key={pathname}>
-      <Outlet />
-    </ErrorBoundary>
-  )
+  return <Outlet />
 }
 
 function AuthOutage() {
@@ -115,7 +109,9 @@ function RequireAuth() {
   }
   return (
     <AppShell>
-      <Outlet />
+      <ErrorBoundary key={location.pathname}>
+        <Outlet />
+      </ErrorBoundary>
     </AppShell>
   )
 }
