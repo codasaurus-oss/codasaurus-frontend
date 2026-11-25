@@ -172,10 +172,10 @@ function ReviewsRoute() {
             setPage(1)
           }}
         >
-          <SelectTrigger aria-label="Filter by repository">
+          <SelectTrigger aria-label="Filter by repository" className="w-56">
             <SelectValue placeholder="All repositories" />
           </SelectTrigger>
-          <SelectContent>
+          <SelectContent className="w-56">
             {repoItems.map((item) => (
               <SelectItem key={item.value} value={item.value}>
                 {item.label}
@@ -192,10 +192,10 @@ function ReviewsRoute() {
             setPage(1)
           }}
         >
-          <SelectTrigger aria-label="Filter by status">
+          <SelectTrigger aria-label="Filter by status" className="w-48">
             <SelectValue placeholder="All statuses" />
           </SelectTrigger>
-          <SelectContent>
+          <SelectContent className="w-48">
             {statusItems.map((item) => (
               <SelectItem key={item.value} value={item.value}>
                 {item.label}

@@ -170,6 +170,27 @@ describe("repositories", () => {
     ).toBeInTheDocument()
   })
 
+  it("enables a paused repository directly from the table", async () => {
+    const fetchMock = stubApi({
+      role: "maintainer",
+      repos: [{ ...repo, active: false }],
+    })
+    renderRepos()
+
+    fireEvent.click(await screen.findByRole("button", { name: "Enable acme/web" }))
+
+    await waitFor(() => {
+      const put = fetchMock.mock.calls.find(
+        ([url, init]) => url === "/api/repos/1" && init?.method === "PUT"
+      )
+      expect(put).toBeDefined()
+      expect(JSON.parse(String(put?.[1]?.body))).toEqual({
+        active: true,
+        config_json: '{"max_findings":10}',
+      })
+    })
+  })
+
   it("blocks invalid JSON but allows non-object JSON with a warning", async () => {
     const fetchMock = stubApi({ role: "maintainer" })
     renderRepos()

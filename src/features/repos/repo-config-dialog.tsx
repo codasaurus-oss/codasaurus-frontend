@@ -1,11 +1,17 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query"
+import { ChevronDownIcon } from "lucide-react"
 import { useMemo, useState, type ReactNode } from "react"
 import { toast } from "sonner"
 
 import { ConfirmDialog } from "@/components/common/confirm-dialog"
 import { ErrorState } from "@/components/common/error-state"
 import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
+import { Button, buttonVariants } from "@/components/ui/button"
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible"
 import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
 import {
@@ -131,33 +137,49 @@ function RepoEditor({
   return (
     <>
       <Separator />
-      <div className="flex flex-col gap-2 px-4">
-        <Label htmlFor="repo-config-json">Config JSON</Label>
-        <Textarea
-          id="repo-config-json"
-          aria-label="Config JSON"
-          aria-describedby={
-            [configError ? "repo-config-error" : null, configWarning ? "repo-config-warning" : null]
-              .filter(Boolean)
-              .join(" ") || undefined
-          }
-          className="min-h-40 font-mono text-xs"
-          spellCheck={false}
-          value={configText}
-          aria-invalid={Boolean(configError)}
-          onChange={(event) => setConfigText(event.target.value)}
-        />
-        {configError ? (
-          <p id="repo-config-error" role="alert" className="text-xs text-destructive">
-            {configError}
+      <Collapsible defaultOpen className="px-4">
+        <CollapsibleTrigger
+          className={buttonVariants({
+            variant: "ghost",
+            size: "sm",
+            className: "w-full justify-between",
+          })}
+        >
+          Repository config
+          <ChevronDownIcon />
+        </CollapsibleTrigger>
+        <CollapsibleContent className="flex flex-col gap-2 pt-2">
+          <p className="text-xs text-muted-foreground">
+            Optional per-repository JSON used by Codasaurus review rules. This
+            is not codasaurus.toml. Leave it empty to use defaults.
           </p>
-        ) : null}
-        {configWarning ? (
-          <p id="repo-config-warning" className="text-xs text-warning">
-            {configWarning}
-          </p>
-        ) : null}
-      </div>
+          <Label htmlFor="repo-config-json">Config JSON</Label>
+          <Textarea
+            id="repo-config-json"
+            aria-label="Config JSON"
+            aria-describedby={
+              [configError ? "repo-config-error" : null, configWarning ? "repo-config-warning" : null]
+                .filter(Boolean)
+                .join(" ") || undefined
+            }
+            className="min-h-40 font-mono text-xs"
+            spellCheck={false}
+            value={configText}
+            aria-invalid={Boolean(configError)}
+            onChange={(event) => setConfigText(event.target.value)}
+          />
+          {configError ? (
+            <p id="repo-config-error" role="alert" className="text-xs text-destructive">
+              {configError}
+            </p>
+          ) : null}
+          {configWarning ? (
+            <p id="repo-config-warning" className="text-xs text-warning">
+              {configWarning}
+            </p>
+          ) : null}
+        </CollapsibleContent>
+      </Collapsible>
       <div className="flex items-center justify-between gap-2 px-4">
         <Label htmlFor="repo-active">Active</Label>
         <Switch

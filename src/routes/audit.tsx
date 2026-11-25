@@ -191,7 +191,7 @@ function AuditConsole() {
               </TableCell>
               <TableCell className="text-right">
                 <Button
-                  variant="ghost"
+                  variant="outline"
                   size="sm"
                   aria-label={`View ${entry.event_type} metadata for ${
                     entry.actor ?? "system"
@@ -226,10 +226,10 @@ function AuditConsole() {
             setPage(1)
           }}
         >
-          <SelectTrigger aria-label="Filter by event type">
+          <SelectTrigger aria-label="Filter by event type" className="w-64">
             <SelectValue placeholder="All events" />
           </SelectTrigger>
-          <SelectContent>
+          <SelectContent className="w-64">
             {eventTypeItems.map((item) => (
               <SelectItem key={item.value} value={item.value}>
                 {item.label}

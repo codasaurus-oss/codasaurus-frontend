@@ -8,6 +8,7 @@ import { LoadingState } from "@/components/common/loading-state"
 import { PageHeader } from "@/components/layout/page-header"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { ButtonGroup } from "@/components/ui/button-group"
 import {
   Empty,
   EmptyContent,
@@ -32,7 +33,7 @@ import {
   reposQueryOptions,
   setupStatusQueryOptions,
 } from "@/lib/api/queries"
-import { syncResultSchema } from "@/lib/api/schemas"
+import { syncResultSchema, type Repo } from "@/lib/api/schemas"
 import { useAuth } from "@/lib/auth/auth-context"
 import { can } from "@/lib/auth/roles"
 import { formatWhen } from "@/lib/format"
@@ -88,6 +89,23 @@ function ReposRoute() {
       setActionError(caught)
     } finally {
       setSyncing(false)
+    }
+  }
+
+  async function setActive(repo: Repo, active: boolean) {
+    setActionError(null)
+    try {
+      await apiFetch(`/api/repos/${repo.id}`, {
+        method: "PUT",
+        body: JSON.stringify({ config_json: repo.config_json ?? "", active }),
+      })
+      toast.success(active ? "Repository enabled" : "Repository paused")
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.repos }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.stats }),
+      ])
+    } catch (caught) {
+      setActionError(caught)
     }
   }
 
@@ -216,14 +234,36 @@ function ReposRoute() {
                       {formatWhen(repo.updated_at)}
                     </TableCell>
                     <TableCell className="text-right">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        aria-label={`${canMaintain ? "Edit" : "View"} ${repo.full_name}`}
-                        onClick={() => setSelectedId(repo.id)}
-                      >
-                        {canMaintain ? "Edit" : "View"}
-                      </Button>
+                      <ButtonGroup className="justify-end">
+                        {canMaintain && repo.active ? (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            aria-label={`Pause ${repo.full_name}`}
+                            onClick={() => void setActive(repo, false)}
+                          >
+                            Pause
+                          </Button>
+                        ) : null}
+                        {canMaintain && !repo.active ? (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            aria-label={`Enable ${repo.full_name}`}
+                            onClick={() => void setActive(repo, true)}
+                          >
+                            Enable
+                          </Button>
+                        ) : null}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          aria-label={`${canMaintain ? "Edit" : "View"} ${repo.full_name}`}
+                          onClick={() => setSelectedId(repo.id)}
+                        >
+                          {canMaintain ? "Edit" : "View"}
+                        </Button>
+                      </ButtonGroup>
                     </TableCell>
                   </TableRow>
                 ))}
