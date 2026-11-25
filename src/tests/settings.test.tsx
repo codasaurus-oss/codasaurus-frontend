@@ -44,6 +44,25 @@ const settings: Record<string, unknown> = {
   openrouter_api_key: "sk-or-secret",
 }
 
+const llmConfig = {
+  provider: "litellm",
+  api_key: "••••••••",
+  model: "codasaurus-review",
+  model_cheap: "codasaurus-cheap",
+  embedding_model: "codasaurus-embedding",
+  upstream_provider: "openrouter",
+  upstream_model: "openai/gpt-5",
+  upstream_model_cheap: "openai/gpt-5-mini",
+  upstream_model_embedding: "openai/text-embedding-3-small",
+  models: [],
+  providers: [{ id: "openrouter", name: "OpenRouter" }],
+  catalog: [
+    { name: "openai/gpt-5", mode: "text" },
+    { name: "openai/gpt-5-mini", mode: "text" },
+    { name: "openai/text-embedding-3-small", mode: "embedding" },
+  ],
+}
+
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
@@ -54,11 +73,6 @@ function jsonResponse(body: unknown, status = 200) {
 // Copied verbatim from ALLOWED_KEYS in codasaurus/src/api/settings.rs; the
 // console must render each of these exactly once and nothing writable besides.
 const ALLOWED_KEYS = [
-  "llm_provider",
-  "llm_api_key",
-  "llm_model",
-  "llm_model_cheap",
-  "llm_embedding_model",
   "llm_daily_budget_usd",
   "public_url",
   "default_severity",
@@ -168,6 +182,12 @@ function stubApi(
           },
         })
       )
+    }
+    if (url.startsWith("/api/setup/llm") && method === "GET") {
+      return Promise.resolve(jsonResponse(llmConfig))
+    }
+    if (url === "/api/setup/llm" && method === "POST") {
+      return Promise.resolve(jsonResponse({ status: "ok" }))
     }
     if (url === "/api/settings" && method === "GET") {
       return Promise.resolve(jsonResponse(values))
@@ -297,32 +317,30 @@ describe("settings", () => {
     }
   })
 
-  it("never submits a masked secret, only a replacement", async () => {
+  it("shows configured LLM values and never submits the masked key", async () => {
     const fetchMock = stubApi()
     renderSettings()
 
     await screen.findByLabelText("Public URL")
     fireEvent.click(screen.getByRole("tab", { name: "LLM" }))
 
-    const input = await screen.findByLabelText("API key")
-    expect(input).toHaveValue("")
-    const replace = screen.getByRole("button", { name: "Replace API key" })
-    expect(replace).toBeDisabled()
-    fireEvent.click(replace)
-    expect(putCalls(fetchMock)).toHaveLength(0)
+    expect(
+      await screen.findByRole("combobox", { name: "Provider" })
+    ).toHaveTextContent("OpenRouter")
+    expect(
+      screen.getByRole("combobox", { name: "Review model" })
+    ).toHaveTextContent("openai/gpt-5")
+    expect(screen.getByLabelText("API key")).toHaveValue("")
 
-    fireEvent.change(input, { target: { value: "sk-live-123" } })
-    fireEvent.click(screen.getByRole("button", { name: "Replace API key" }))
+    fireEvent.click(screen.getByRole("button", { name: "Save configuration" }))
 
     await waitFor(() => {
-      const [put] = putCalls(fetchMock)
-      expect(put).toBeDefined()
-      expect(String(put?.[0])).toBe("/api/settings/llm_api_key")
-      expect(JSON.parse(String(put?.[1]?.body))).toEqual({
-        value: "sk-live-123",
-      })
+      const post = fetchMock.mock.calls.find(
+        ([url, init]) => url === "/api/setup/llm" && init?.method === "POST"
+      )
+      expect(post).toBeDefined()
+      expect(JSON.stringify(post?.[1]?.body)).not.toContain("•")
     })
-    expect(JSON.stringify(putCalls(fetchMock))).not.toContain("•")
   })
 
   it("warns instead of submitting a starred draft", async () => {

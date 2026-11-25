@@ -1,5 +1,5 @@
-import { useQuery, useQueryClient } from "@tanstack/react-query"
-import { TriangleAlertIcon } from "lucide-react"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { ChevronsUpDownIcon, TriangleAlertIcon } from "lucide-react"
 import { useState, type ReactNode } from "react"
 import { toast } from "sonner"
 
@@ -10,7 +10,21 @@ import { StatusBadge } from "@/components/common/status-badge"
 import { PageHeader } from "@/components/layout/page-header"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
+import { Button, buttonVariants } from "@/components/ui/button"
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command"
+import {
+  Field,
+  FieldDescription,
+  FieldGroup,
+  FieldLabel,
+} from "@/components/ui/field"
 import {
   Card,
   CardContent,
@@ -18,14 +32,20 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import { FieldGroup } from "@/components/ui/field"
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { SecretInput } from "@/features/setup/secret-field"
 import { SettingField } from "@/features/settings/setting-field"
 import { ApiError } from "@/lib/api/errors"
 import { apiFetch } from "@/lib/api/client"
 import {
   githubSettingsQueryOptions,
+  llmConfigQueryOptions,
   queryKeys,
   settingsQueryOptions,
 } from "@/lib/api/queries"
@@ -64,14 +84,7 @@ const TABS: Record<TabId, TabMeta> = {
   llm: {
     label: "LLM",
     description: "Gateway provider, credential and model aliases.",
-    fields: [
-      ["llm_provider", "Provider"],
-      ["llm_api_key", "API key"],
-      ["llm_model", "Model"],
-      ["llm_model_cheap", "Cheap model"],
-      ["llm_embedding_model", "Embedding model"],
-      ["llm_daily_budget_usd", "Daily budget (USD)"],
-    ],
+    fields: [["llm_daily_budget_usd", "Daily budget (USD)"]],
   },
   oidc: {
     label: "OIDC",
@@ -283,6 +296,201 @@ function RegistrationCard() {
   )
 }
 
+function LlmCard() {
+  const queryClient = useQueryClient()
+  const config = useQuery(llmConfigQueryOptions)
+  const [draftProvider, setDraftProvider] = useState<string | null>(null)
+  const [draftReview, setDraftReview] = useState<string | null>(null)
+  const [draftCheap, setDraftCheap] = useState<string | null>(null)
+  const [draftEmbedding, setDraftEmbedding] = useState<string | null>(null)
+  const [apiKey, setApiKey] = useState("")
+  const [openField, setOpenField] = useState<string | null>(null)
+
+  const save = useMutation({
+    mutationFn: () => {
+      const body: Record<string, string> = { provider: "litellm" }
+      if (apiKey.trim()) {
+        body.api_key = apiKey.trim()
+      }
+      if (selectedProvider) {
+        body.upstream_provider = selectedProvider
+      }
+      if (reviewValue) {
+        body.upstream_model = reviewValue
+      }
+      if (cheapValue) {
+        body.upstream_model_cheap = cheapValue
+      }
+      if (embeddingValue) {
+        body.upstream_model_embedding = embeddingValue
+      }
+      return apiFetch("/api/setup/llm", {
+        method: "POST",
+        body: JSON.stringify(body),
+      })
+    },
+    onSuccess: async () => {
+      toast.success("Inference settings saved")
+      setApiKey("")
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.llmConfig }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.settings }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.setupStatus }),
+      ])
+    },
+  })
+
+  const selectedProvider =
+    draftProvider ?? config.data?.upstream_provider ?? config.data?.provider ?? ""
+  const reviewValue =
+    draftReview ?? config.data?.upstream_model ?? config.data?.model ?? ""
+  const cheapValue = draftCheap ?? config.data?.upstream_model_cheap ?? ""
+  const embeddingValue =
+    draftEmbedding ?? config.data?.upstream_model_embedding ?? ""
+  const catalog = config.data?.catalog ?? []
+  const textModels = catalog.filter((model) => model.mode === "text")
+  const embeddingModels = catalog.filter((model) => model.mode === "embedding")
+
+  function picker(
+    id: string,
+    label: string,
+    value: string,
+    options: Array<{ value: string; label: string }>,
+    placeholder: string,
+    onSelect: (value: string) => void
+  ) {
+    const open = openField === id
+    const selectedLabel =
+      options.find((option) => option.value === value)?.label ?? placeholder
+    return (
+      <Field>
+        <FieldLabel htmlFor={`settings-llm-${id}`}>{label}</FieldLabel>
+        <Popover open={open} onOpenChange={(next) => setOpenField(next ? id : null)}>
+          <PopoverTrigger
+            id={`settings-llm-${id}`}
+            role="combobox"
+            aria-label={label}
+            aria-expanded={open}
+            className={buttonVariants({
+              variant: "outline",
+              className: "w-full justify-start text-left",
+            })}
+          >
+            {selectedLabel}
+            <ChevronsUpDownIcon className="ml-auto opacity-50" />
+          </PopoverTrigger>
+          <PopoverContent align="start" className="w-(--anchor-width) p-0">
+            <Command>
+              <CommandInput placeholder={`Search ${label.toLowerCase()}`} />
+              <CommandList>
+                <CommandEmpty>No matches found.</CommandEmpty>
+                <CommandGroup>
+                  {options.map((option) => (
+                    <CommandItem
+                      key={option.value}
+                      value={option.value}
+                      onSelect={() => {
+                        onSelect(option.value)
+                        setOpenField(null)
+                      }}
+                    >
+                      {option.label}
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              </CommandList>
+            </Command>
+          </PopoverContent>
+        </Popover>
+      </Field>
+    )
+  }
+
+  if (config.isPending) {
+    return <LoadingState rows={6} />
+  }
+  if (config.isError) {
+    return (
+      <ErrorState error={config.error} onRetry={() => void config.refetch()} />
+    )
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Inference</CardTitle>
+        <CardDescription>
+          Provider, credentials, and model aliases used for reviews.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-4">
+        <FieldGroup>
+          {picker(
+            "provider",
+            "Provider",
+            selectedProvider,
+            (config.data?.providers ?? []).map((item) => ({
+              value: item.id,
+              label: item.name,
+            })),
+            "Select a provider",
+            setDraftProvider
+          )}
+          <Field>
+            <FieldLabel htmlFor="settings-llm-api-key">API key</FieldLabel>
+            <SecretInput
+              id="settings-llm-api-key"
+              label="API key"
+              placeholder="Leave blank to keep the stored key"
+              value={apiKey}
+              onChange={setApiKey}
+            />
+            <FieldDescription>
+              Leave blank to keep the stored key.
+            </FieldDescription>
+          </Field>
+          {picker(
+            "review",
+            "Review model",
+            reviewValue,
+            textModels.map((model) => ({ value: model.name, label: model.name })),
+            "Select a model",
+            setDraftReview
+          )}
+          {picker(
+            "cheap",
+            "Fallback / cheap model",
+            cheapValue,
+            textModels.map((model) => ({ value: model.name, label: model.name })),
+            "Use the review model",
+            setDraftCheap
+          )}
+          {picker(
+            "embedding",
+            "Embedding model",
+            embeddingValue,
+            embeddingModels.map((model) => ({ value: model.name, label: model.name })),
+            "No embeddings",
+            setDraftEmbedding
+          )}
+        </FieldGroup>
+        <Button
+          onClick={() => save.mutate()}
+          disabled={!selectedProvider || !reviewValue || save.isPending}
+        >
+          {save.isPending ? "Saving…" : "Save configuration"}
+        </Button>
+        {save.isError ? (
+          <Alert variant="destructive">
+            <AlertTitle>Could not save inference settings</AlertTitle>
+            <AlertDescription>{save.error.message}</AlertDescription>
+          </Alert>
+        ) : null}
+      </CardContent>
+    </Card>
+  )
+}
+
 type TabBodyProps = {
   tab: TabId
   values: SettingsMap
@@ -310,6 +518,7 @@ function TabBody({
     <div className="flex flex-col gap-4">
       {tab === "general" ? <OfflineCard values={values} /> : null}
       {tab === "github" ? <RegistrationCard /> : null}
+      {tab === "llm" ? <LlmCard /> : null}
 
       {meta.fields.length > 0 ? (
         <Card>

@@ -8,6 +8,7 @@ import {
   inviteInfoSchema,
   invitesResponseSchema,
   learningRulesResponseSchema,
+  llmConfigSchema,
   mcpServersResponseSchema,
   oidcStatusSchema,
   repoListSchema,
@@ -48,6 +49,7 @@ const queryKeys = {
   learningRules: ["learning", "rules"] as const,
   mcpServers: ["mcp", "servers"] as const,
   settings: ["settings"] as const,
+  llmConfig: ["setup", "llm"] as const,
   githubSettings: ["settings", "github"] as const,
 }
 
@@ -65,6 +67,12 @@ const inviteQueryOptions = (token: string) =>
     enabled: Boolean(token),
     retry: false,
   })
+
+const llmConfigQueryOptions = queryOptions({
+  queryKey: queryKeys.llmConfig,
+  queryFn: () => apiFetch("/api/setup/llm", undefined, llmConfigSchema),
+  staleTime: 30_000,
+})
 
 const setupStatusQueryOptions = queryOptions({
   queryKey: queryKeys.setupStatus,
@@ -206,6 +214,7 @@ export {
   inviteQueryOptions,
   invitesQueryOptions,
   learningQueryOptions,
+  llmConfigQueryOptions,
   mcpServersQueryOptions,
   oidcStatusQueryOptions,
   queryKeys,
