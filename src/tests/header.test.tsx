@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import { render, waitFor } from "@testing-library/react"
+import { cleanup, render, waitFor } from "@testing-library/react"
 import { MemoryRouter } from "react-router"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
@@ -79,6 +79,7 @@ function renderShell(path: string) {
 }
 
 afterEach(() => {
+  cleanup()
   vi.unstubAllGlobals()
 })
 
@@ -91,6 +92,17 @@ describe("application shell", () => {
       expect(
         document.querySelector('[data-slot="breadcrumb-page"]')
       ).toHaveTextContent("Repositories")
+    )
+  })
+
+  it("shows a detail breadcrumb for a nested review route", async () => {
+    stubApi()
+    renderShell("/app/reviews/42")
+
+    await waitFor(() =>
+      expect(
+        document.querySelector('[data-slot="breadcrumb-page"]')
+      ).toHaveTextContent("Review detail")
     )
   })
 })

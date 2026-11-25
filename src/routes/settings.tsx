@@ -49,6 +49,7 @@ import { SecretInput } from "@/features/setup/secret-field"
 import { SettingField } from "@/features/settings/setting-field"
 import { ApiError } from "@/lib/api/errors"
 import { apiFetch } from "@/lib/api/client"
+import { withCurrent } from "@/lib/model-options"
 import {
   githubSettingsQueryOptions,
   llmConfigQueryOptions,
@@ -370,6 +371,8 @@ function RegistrationCard() {
   )
 }
 
+const NONE = "__none__"
+
 function LlmCard() {
   const queryClient = useQueryClient()
   const config = useQuery(llmConfigQueryOptions)
@@ -380,24 +383,38 @@ function LlmCard() {
   const [apiKey, setApiKey] = useState("")
   const [openField, setOpenField] = useState<string | null>(null)
 
+  const originalProvider = config.data?.upstream_provider ?? ""
+  const originalReview =
+    config.data?.upstream_model ?? config.data?.model ?? ""
+  const originalCheap =
+    config.data?.upstream_model_cheap ?? config.data?.model_cheap ?? ""
+  const originalEmbedding =
+    config.data?.upstream_model_embedding ?? config.data?.embedding_model ?? ""
+  const selectedProvider = draftProvider ?? originalProvider
+  const reviewValue = draftReview ?? originalReview
+  const cheapValue = draftCheap ?? originalCheap
+  const embeddingValue = draftEmbedding ?? originalEmbedding
+  const disabledProvider = config.data?.provider === "disabled"
+  const changed =
+    (draftProvider !== null && draftProvider !== originalProvider) ||
+    (draftReview !== null && draftReview !== originalReview) ||
+    (draftCheap !== null && draftCheap !== originalCheap) ||
+    (draftEmbedding !== null && draftEmbedding !== originalEmbedding)
+
   const save = useMutation({
     mutationFn: () => {
       const body: Record<string, string> = { provider: "litellm" }
-      if (apiKey.trim()) {
-        body.api_key = apiKey.trim()
+      if (!changed) {
+        return apiFetch("/api/setup/llm", {
+          method: "POST",
+          body: JSON.stringify(body),
+        })
       }
-      if (selectedProvider) {
-        body.upstream_provider = selectedProvider
-      }
-      if (reviewValue) {
-        body.upstream_model = reviewValue
-      }
-      if (cheapValue) {
-        body.upstream_model_cheap = cheapValue
-      }
-      if (embeddingValue) {
-        body.upstream_model_embedding = embeddingValue
-      }
+      body.api_key = apiKey.trim()
+      body.upstream_provider = selectedProvider
+      body.upstream_model = reviewValue
+      body.upstream_model_cheap = cheapValue
+      body.upstream_model_embedding = embeddingValue
       return apiFetch("/api/setup/llm", {
         method: "POST",
         body: JSON.stringify(body),
@@ -414,13 +431,6 @@ function LlmCard() {
     },
   })
 
-  const selectedProvider =
-    draftProvider ?? config.data?.upstream_provider ?? config.data?.provider ?? ""
-  const reviewValue =
-    draftReview ?? config.data?.upstream_model ?? config.data?.model ?? ""
-  const cheapValue = draftCheap ?? config.data?.upstream_model_cheap ?? ""
-  const embeddingValue =
-    draftEmbedding ?? config.data?.upstream_model_embedding ?? ""
   const catalog = config.data?.catalog ?? []
   const textModels = catalog.filter((model) => model.mode === "text")
   const embeddingModels = catalog.filter((model) => model.mode === "embedding")
@@ -498,20 +508,36 @@ function LlmCard() {
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
+        {disabledProvider ? (
+          <Alert>
+            <AlertTitle>Inference is disabled</AlertTitle>
+            <AlertDescription>
+              Enable inference during setup before changing provider or models.
+            </AlertDescription>
+          </Alert>
+        ) : null}
         <FieldGroup>
           {picker(
             "provider",
             "Provider",
             selectedProvider,
-            (config.data?.providers ?? []).map((item) => ({
-              value: item.id,
-              label: item.name,
-            })),
+            withCurrent(
+              (config.data?.providers ?? []).map((item) => ({
+                value: item.id,
+                label: item.name,
+              })),
+              selectedProvider
+            ),
             "Select a provider",
             setDraftProvider
           )}
           <Field>
-            <FieldLabel htmlFor="settings-llm-api-key">API key</FieldLabel>
+            <FieldLabel htmlFor="settings-llm-api-key">
+              API key
+              {config.data?.api_key ? (
+                <Badge variant="secondary">Configured</Badge>
+              ) : null}
+            </FieldLabel>
             <SecretInput
               id="settings-llm-api-key"
               label="API key"
@@ -520,14 +546,19 @@ function LlmCard() {
               onChange={setApiKey}
             />
             <FieldDescription>
-              Leave blank to keep the stored key.
+              {changed
+                ? "Enter the provider API key to save model changes."
+                : "Leave blank to keep the stored key."}
             </FieldDescription>
           </Field>
           {picker(
             "review",
             "Review model",
             reviewValue,
-            textModels.map((model) => ({ value: model.name, label: model.name })),
+            withCurrent(
+              textModels.map((model) => ({ value: model.name, label: model.name })),
+              reviewValue
+            ),
             "Select a model",
             setDraftReview
           )}
@@ -535,22 +566,46 @@ function LlmCard() {
             "cheap",
             "Fallback / cheap model",
             cheapValue,
-            textModels.map((model) => ({ value: model.name, label: model.name })),
+            withCurrent(
+              [
+                { value: NONE, label: "Use the review model" },
+                ...textModels.map((model) => ({
+                  value: model.name,
+                  label: model.name,
+                })),
+              ],
+              cheapValue
+            ),
             "Use the review model",
-            setDraftCheap
+            (value) => setDraftCheap(value === NONE ? "" : value)
           )}
           {picker(
             "embedding",
             "Embedding model",
             embeddingValue,
-            embeddingModels.map((model) => ({ value: model.name, label: model.name })),
+            withCurrent(
+              [
+                { value: NONE, label: "No embeddings" },
+                ...embeddingModels.map((model) => ({
+                  value: model.name,
+                  label: model.name,
+                })),
+              ],
+              embeddingValue
+            ),
             "No embeddings",
-            setDraftEmbedding
+            (value) => setDraftEmbedding(value === NONE ? "" : value)
           )}
         </FieldGroup>
         <Button
           onClick={() => save.mutate()}
-          disabled={!selectedProvider || !reviewValue || save.isPending}
+          disabled={
+            disabledProvider ||
+            !selectedProvider ||
+            !reviewValue ||
+            (changed && !apiKey.trim()) ||
+            save.isPending
+          }
         >
           {save.isPending ? "Saving…" : "Save configuration"}
         </Button>

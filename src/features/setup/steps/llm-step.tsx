@@ -29,20 +29,12 @@ import { type SetupStepProps } from "@/features/setup/steps"
 import { Spinner } from "@/components/ui/spinner"
 import { apiFetch } from "@/lib/api/client"
 import { llmConfigSchema, modelCatalogSchema, setupResultSchema } from "@/lib/api/schemas"
+import { withCurrent, type PickerOption } from "@/lib/model-options"
 
 const REVIEW_ALIAS = "codasaurus-review"
 const CHEAP_ALIAS = "codasaurus-cheap"
 const EMBEDDING_ALIAS = "codasaurus-embedding"
 const NONE = "__none__"
-
-type PickerOption = { value: string; label: string }
-
-function withCurrent(options: PickerOption[], current: string) {
-  if (!current || options.some((option) => option.value === current)) {
-    return options
-  }
-  return [...options, { value: current, label: current }]
-}
 
 function LlmStep({ onComplete }: SetupStepProps) {
   const [draftProvider, setDraftProvider] = useState<string | null>(null)

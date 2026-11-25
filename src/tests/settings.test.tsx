@@ -331,6 +331,7 @@ describe("settings", () => {
       screen.getByRole("combobox", { name: "Review model" })
     ).toHaveTextContent("openai/gpt-5")
     expect(screen.getByLabelText("API key")).toHaveValue("")
+    expect(screen.getByText("Configured")).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole("button", { name: "Save configuration" }))
 
@@ -339,8 +340,28 @@ describe("settings", () => {
         ([url, init]) => url === "/api/setup/llm" && init?.method === "POST"
       )
       expect(post).toBeDefined()
-      expect(JSON.stringify(post?.[1]?.body)).not.toContain("•")
+      const body = JSON.parse(String(post?.[1]?.body))
+      expect(body).not.toContain("•")
+      expect(body.upstream_provider).toBeUndefined()
+      expect(body.upstream_model).toBeUndefined()
     })
+  })
+
+  it("requires a provider key before saving changed models", async () => {
+    stubApi()
+    renderSettings()
+
+    await screen.findByLabelText("Public URL")
+    fireEvent.click(screen.getByRole("tab", { name: "LLM" }))
+
+    const review = await screen.findByRole("combobox", { name: "Review model" })
+    fireEvent.click(review)
+    fireEvent.click(
+      await screen.findByRole("option", { name: "openai/gpt-5-mini" })
+    )
+
+    expect(screen.getByRole("button", { name: "Save configuration" })).toBeDisabled()
+    expect(screen.getByText(/Enter the provider API key/)).toBeInTheDocument()
   })
 
   it("warns instead of submitting a starred draft", async () => {

@@ -56,10 +56,16 @@ function Header() {
   const { theme, setTheme } = useTheme()
   const { user, setUser } = useAuth()
   const location = useLocation()
+  const segments = location.pathname.split("/").filter(Boolean)
+  const section = navigation.find(
+    (item) => item.href.slice(1) === `/${segments.slice(0, 2).join("/")}`
+  )
   const currentPage =
-    navigation.find(
-      (item) => item.href.slice(1) === location.pathname.replace(/\/$/, "")
-    )?.title ?? "Dashboard"
+    segments.length > 2
+      ? section?.title === "Reviews"
+        ? "Review detail"
+        : `${section?.title ?? "Details"} detail`
+      : (section?.title ?? "Not found")
   const initials = (user?.email ?? "?")
     .split("@")[0]
     .split(/[._-]/)
