@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
+import { SecretInput } from "@/features/setup/secret-field"
 import { apiFetch } from "@/lib/api/client"
 import { settingSaveSchema } from "@/lib/api/schemas"
 
@@ -219,7 +220,7 @@ function SettingField({ settingKey, label, value, onSaved }: SettingFieldProps) 
           <SelectTrigger id={id} aria-label={label} className="w-full sm:w-64">
             <SelectValue placeholder="Not set" />
           </SelectTrigger>
-          <SelectContent>
+          <SelectContent className="w-full sm:w-64">
             {options.map((option) => (
               <SelectItem key={option} value={option}>
                 {option}
@@ -236,20 +237,23 @@ function SettingField({ settingKey, label, value, onSaved }: SettingFieldProps) 
           value={draft}
           onChange={(event) => setDraft(event.target.value)}
         />
+      ) : control === "password" ? (
+        <SecretInput
+          id={id}
+          label={label}
+          placeholder={masked ? "••••••••" : "Not configured"}
+          value={draft}
+          onChange={(next) => {
+            setDraft(next)
+            setNotice(null)
+          }}
+        />
       ) : (
         <Input
           id={id}
           aria-label={label}
           type={inputType(control)}
           step={control === "number" ? "any" : undefined}
-          autoComplete={control === "password" ? "off" : undefined}
-          placeholder={
-            masked
-              ? "••••••••"
-              : control === "password"
-                ? "Not configured"
-                : undefined
-          }
           value={draft}
           onChange={(event) => {
             setDraft(event.target.value)

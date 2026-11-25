@@ -9,6 +9,12 @@ import { LoadingState } from "@/components/common/loading-state"
 import { StatusBadge } from "@/components/common/status-badge"
 import { PageHeader } from "@/components/layout/page-header"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion"
 import { Badge } from "@/components/ui/badge"
 import { Button, buttonVariants } from "@/components/ui/button"
 import {
@@ -73,7 +79,7 @@ const TABS: Record<TabId, TabMeta> = {
     description: "Instance identity and the offline kill-switch.",
     fields: [
       ["public_url", "Public URL"],
-      ["offline_mode", "Offline mode"],
+      ["offline_mode", "Mode"],
     ],
   },
   github: {
@@ -158,6 +164,74 @@ const TABS: Record<TabId, TabMeta> = {
   },
 }
 
+const ADVANCED_GROUPS = [
+  {
+    title: "Review policy",
+    description: "Severity, strictness, limits, and reviewer behavior.",
+    keys: [
+      "default_severity",
+      "review_strictness",
+      "max_blocking",
+      "max_warnings",
+      "forbidden_paths",
+      "request_reviewers",
+      "create_check_run",
+      "update_pr_description",
+    ],
+  },
+  {
+    title: "Detectors",
+    description: "Choose which review detectors run.",
+    keys: [
+      "hallucinated_imports_enabled",
+      "phantom_deps_enabled",
+      "vulnerabilities_enabled",
+      "secrets_enabled",
+      "over_engineering_enabled",
+      "boilerplate_enabled",
+      "todo_leaks_enabled",
+      "stale_api_enabled",
+      "risky_patterns_enabled",
+      "graph_enabled",
+      "guidelines_enabled",
+      "iac_enabled",
+      "auto_labels_enabled",
+    ],
+  },
+  {
+    title: "Output behavior",
+    description: "Custom instructions, fixes, and approvals.",
+    keys: [
+      "custom_instructions",
+      "exclude_patterns",
+      "allow_auto_fix",
+      "auto_approve",
+      "pr_title_fix",
+    ],
+  },
+  {
+    title: "Runtime limits",
+    description: "Workers, timeouts, and review size limits.",
+    keys: [
+      "audit_retention_days",
+      "queue_workers",
+      "max_concurrent_reviews",
+      "review_timeout_secs",
+      "max_inline_comments",
+      "max_reviewer_files",
+      "max_comment_bytes",
+      "max_llm_diff_chars",
+      "auto_improve_max_files",
+      "auto_improve_max_diff",
+    ],
+  },
+  {
+    title: "Security",
+    description: "Cookies, HSTS, and metrics access.",
+    keys: ["hsts", "metrics_token", "secure_cookies", "insecure_cookies"],
+  },
+] as const
+
 const TAB_IDS = Object.keys(TABS) as TabId[]
 
 type Integration = { path: string; label: string }
@@ -234,9 +308,9 @@ function OfflineCard({ values }: { values: SettingsMap }) {
   return (
     <Card size="sm">
       <CardHeader>
-        <CardTitle>Offline mode</CardTitle>
+        <CardTitle>Mode</CardTitle>
         <CardDescription>
-          Effective kill-switch state, independent of the LLM credential.
+          Review mode for this instance, independent of the LLM credential.
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-2">
@@ -514,31 +588,68 @@ function TabBody({
   const integrations = INTEGRATIONS[tab]
   const clears = CLEARS[tab]
 
+  function fields(fieldsToRender: readonly [string, string][]) {
+    return (
+      <FieldGroup>
+        {fieldsToRender.map(([key, label]) => (
+          <SettingField
+            key={`${key}:${values[key] ?? ""}`}
+            settingKey={key}
+            label={label}
+            value={values[key]}
+            onSaved={onSaved}
+          />
+        ))}
+      </FieldGroup>
+    )
+  }
+
   return (
     <div className="flex flex-col gap-4">
       {tab === "general" ? <OfflineCard values={values} /> : null}
       {tab === "github" ? <RegistrationCard /> : null}
       {tab === "llm" ? <LlmCard /> : null}
 
-      {meta.fields.length > 0 ? (
+      {tab === "advanced" ? (
         <Card>
           <CardHeader>
             <CardTitle>{meta.label}</CardTitle>
             <CardDescription>{meta.description}</CardDescription>
           </CardHeader>
           <CardContent>
-            <FieldGroup>
-              {meta.fields.map(([key, label]) => (
-                <SettingField
-                  key={`${key}:${values[key] ?? ""}`}
-                  settingKey={key}
-                  label={label}
-                  value={values[key]}
-                  onSaved={onSaved}
-                />
+            <Accordion defaultValue={ADVANCED_GROUPS.map((group) => group.title)}>
+              {ADVANCED_GROUPS.map((group) => (
+                <AccordionItem key={group.title} value={group.title}>
+                  <AccordionTrigger>
+                    <span className="flex flex-col items-start gap-0.5">
+                      <span>{group.title}</span>
+                      <span className="text-xs font-normal text-muted-foreground">
+                        {group.description}
+                      </span>
+                    </span>
+                  </AccordionTrigger>
+                  <AccordionContent>
+                    {fields(
+                      group.keys.map((key) => {
+                        const entry = TABS.advanced.fields.find(
+                          ([fieldKey]) => fieldKey === key
+                        )
+                        return entry ?? [key, key]
+                      })
+                    )}
+                  </AccordionContent>
+                </AccordionItem>
               ))}
-            </FieldGroup>
+            </Accordion>
           </CardContent>
+        </Card>
+      ) : meta.fields.length > 0 ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>{meta.label}</CardTitle>
+            <CardDescription>{meta.description}</CardDescription>
+          </CardHeader>
+          <CardContent>{fields(meta.fields)}</CardContent>
         </Card>
       ) : null}
 

@@ -56,6 +56,7 @@ function SecretInput({
     <InputGroup>
       <InputGroupInput
         id={id}
+        aria-label={label}
         type={revealed ? "text" : "password"}
         autoComplete={autoComplete}
         placeholder={placeholder}
@@ -96,6 +97,7 @@ function SecretTextarea({
       <InputGroup className="h-auto items-start">
         <InputGroupTextarea
           id={id}
+          aria-label={label}
           className={cn(className, !revealed && "[-webkit-text-security:disc]")}
           rows={rows}
           value={value}

@@ -452,7 +452,7 @@ function DashboardRoute() {
                   onRetry={() => void health.refetch()}
                 />
               ) : (
-                <StatRow label="Offline mode">
+                <StatRow label="Mode">
                   {health.data ? (
                     <StatusBadge
                       label={
