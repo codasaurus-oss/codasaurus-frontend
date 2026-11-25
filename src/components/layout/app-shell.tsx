@@ -1,9 +1,9 @@
 import { useQuery } from "@tanstack/react-query"
 import type { ReactNode } from "react"
 
-import { StatusBadge } from "@/components/common/status-badge"
 import { Header } from "@/components/layout/header"
 import { navigation } from "@/components/layout/navigation"
+import { Badge } from "@/components/ui/badge"
 import {
   Sidebar,
   SidebarContent,
@@ -84,33 +84,49 @@ function HealthStrip() {
         <>
           <span className="flex items-center gap-1.5">
             Database
-            <StatusBadge
-              label={setup.data.database ? "Connected" : "Unavailable"}
-              tone={setup.data.database ? "success" : "warning"}
-            />
+            <Badge
+              variant="outline"
+              className={
+                setup.data.database
+                  ? "border-success/30 bg-success/10 text-success"
+                  : "border-warning/30 bg-warning/10 text-warning"
+              }
+            >
+              {setup.data.database ? "Connected" : "Unavailable"}
+            </Badge>
           </span>
           <span className="flex items-center gap-1.5">
             GitHub App
-            <StatusBadge
-              label={setup.data.github ? "Configured" : "Not configured"}
-              tone={setup.data.github ? "success" : "warning"}
-            />
+            <Badge
+              variant="outline"
+              className={
+                setup.data.github
+                  ? "border-success/30 bg-success/10 text-success"
+                  : "border-warning/30 bg-warning/10 text-warning"
+              }
+            >
+              {setup.data.github ? "Configured" : "Not configured"}
+            </Badge>
           </span>
           <span className="flex items-center gap-1.5">
             LLM
-            <StatusBadge
-              label={setup.data.llm ? "Setup complete" : "Not configured"}
-            />
+            <Badge variant="outline">
+              {setup.data.llm ? "Setup complete" : "Not configured"}
+            </Badge>
           </span>
           {health.data ? (
             <span className="flex items-center gap-1.5">
-              Offline mode
-              <StatusBadge
-                label={
-                  health.data.offline_mode ? "Offline · Tier-1 only" : "Online"
+              Mode
+              <Badge
+                variant="outline"
+                className={
+                  health.data.offline_mode
+                    ? "border-warning/30 bg-warning/10 text-warning"
+                    : undefined
                 }
-                tone={health.data.offline_mode ? "warning" : "default"}
-              />
+              >
+                {health.data.offline_mode ? "Offline · Tier-1 only" : "Online"}
+              </Badge>
             </span>
           ) : null}
         </>

@@ -7,10 +7,11 @@ import {
   SearchIcon,
   SunIcon,
   SunMoonIcon,
-  UserIcon,
 } from "lucide-react"
+import { useLocation } from "react-router"
 import { toast } from "sonner"
 
+import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { navigation } from "@/components/layout/navigation"
 import {
   Breadcrumb,
@@ -54,6 +55,21 @@ function Header() {
   const [passwordOpen, setPasswordOpen] = useState(false)
   const { theme, setTheme } = useTheme()
   const { user, setUser } = useAuth()
+  const location = useLocation()
+  const currentPage =
+    navigation.find(
+      (item) => item.href.slice(1) === location.pathname.replace(/\/$/, "")
+    )?.title ?? "Dashboard"
+  const initials = (user?.email ?? "?")
+    .split("@")[0]
+    .split(/[._-]/)
+    .map((part) => part[0] ?? "")
+    .join("")
+    .slice(0, 2)
+    .toUpperCase()
+  const avatarTone = ["bg-muted", "bg-secondary", "bg-accent"][
+    (user?.email ?? "").length % 3
+  ]
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -92,7 +108,7 @@ function Header() {
             </BreadcrumbItem>
             <BreadcrumbSeparator className="hidden md:block" />
             <BreadcrumbItem>
-              <BreadcrumbPage>Dashboard</BreadcrumbPage>
+              <BreadcrumbPage>{currentPage}</BreadcrumbPage>
             </BreadcrumbItem>
           </BreadcrumbList>
         </Breadcrumb>
@@ -149,7 +165,9 @@ function Header() {
                 <Button variant="ghost" size="sm" className="gap-2" aria-label="Account" />
               }
             >
-              <UserIcon />
+              <Avatar size="sm" className={avatarTone}>
+                <AvatarFallback>{initials || "?"}</AvatarFallback>
+              </Avatar>
               <span className="hidden max-w-40 truncate sm:inline">
                 {user.email}
               </span>
