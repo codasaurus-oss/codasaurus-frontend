@@ -227,8 +227,8 @@ test("the setup wizard completes and lands on the completion screen", async ({
   await expect(page.getByText("First-run setup")).toBeVisible()
 
   await page.getByLabel("Email").fill("owner@example.com")
-  await page.getByLabel("Password").fill("correct-horse-battery")
-  await page.getByLabel("Bootstrap secret").fill("bootstrap-secret")
+  await page.getByRole("textbox", { name: "Password" }).fill("correct-horse-battery")
+  await page.getByLabel("Setup secret").fill("bootstrap-secret")
   await page.getByRole("button", { name: "Create owner" }).click()
 
   await expect(page).toHaveURL(/#\/setup\/complete/)
