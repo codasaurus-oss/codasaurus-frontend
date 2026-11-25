@@ -3,8 +3,10 @@
 Web dashboard for [Codasaurus](https://github.com/codasaurus-oss/codasaurus), a Rust
 service that reviews pull requests with LLM agents and reports repository risk.
 
-This repository is the fresh React + shadcn interface. It is a static single-page
-app: the Rust backend serves the built `dist/` and exposes the API it calls.
+This repository is the React + shadcn interface. It is a static single-page app:
+the Rust backend serves the built `dist/` and exposes the API it calls. You do not
+need this repository to run Codasaurus; the backend Compose stack builds and
+serves the dashboard. Only clone and run it when developing the UI.
 
 ## Stack
 
