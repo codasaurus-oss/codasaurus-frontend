@@ -64,12 +64,16 @@ function InviteDialog({ open, onOpenChange }: InviteDialogProps) {
     onOpenChange(value)
   }
 
+  const [capabilities, setCapabilities] = useState<string[]>([])
+
   async function create(event: FormEvent) {
     event.preventDefault()
     setError(null)
     setCreating(true)
     const address = email.trim()
-    const body = address ? { email: address, role } : { role }
+    const body = address
+      ? { email: address, role, capabilities }
+      : { role, capabilities }
     try {
       const invite = await apiFetch(
         "/api/users/invites",
@@ -188,6 +192,41 @@ function InviteDialog({ open, onOpenChange }: InviteDialogProps) {
                     ))}
                   </SelectContent>
                 </Select>
+              </Field>
+              <Field>
+                <FieldLabel>Extra capabilities</FieldLabel>
+                <FieldDescription>
+                  Role defaults are included automatically. Add only what this
+                  invite needs beyond its role.
+                </FieldDescription>
+                <div className="flex flex-wrap gap-2">
+                  {[
+                    ["repos:read", "Read repositories"],
+                    ["repos:write", "Manage repositories"],
+                    ["reviews:read", "Read reviews"],
+                    ["reviews:write", "Run reviews"],
+                    ["settings:read", "Read settings"],
+                    ["mcp:write", "Manage MCP servers"],
+                    ["tickets:write", "Manage ticket credentials"],
+                    ["users:invite", "Invite users"],
+                  ].map(([value, label]) => (
+                    <label key={value} className="flex items-center gap-1.5 text-xs">
+                      <input
+                        type="checkbox"
+                        aria-label={label}
+                        checked={capabilities.includes(value)}
+                        onChange={(event) =>
+                          setCapabilities((current) =>
+                            event.target.checked
+                              ? [...current, value]
+                              : current.filter((cap) => cap !== value)
+                          )
+                        }
+                      />
+                      {label}
+                    </label>
+                  ))}
+                </div>
               </Field>
             </FieldGroup>
             {error ? <ErrorState error={error} /> : null}

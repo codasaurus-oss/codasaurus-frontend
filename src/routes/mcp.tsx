@@ -206,6 +206,30 @@ function McpConsole() {
     }
   }
 
+  async function connectOAuth(server: McpServer) {
+    try {
+      const result = await apiFetch<{ authorize_url: string }>(
+        `/api/mcp/oauth/start/${server.id}`,
+        { method: "GET" }
+      )
+      window.location.href = result.authorize_url
+    } catch (caught) {
+      toast.error(caught instanceof Error ? caught.message : "OAuth setup failed")
+    }
+  }
+
+  async function disconnectOAuth(server: McpServer) {
+    try {
+      await apiFetch(`/api/mcp/oauth/disconnect/${server.id}`, {
+        method: "POST",
+      })
+      toast.success(`${server.name} disconnected`)
+      await queryClient.invalidateQueries({ queryKey: queryKeys.mcpServers })
+    } catch (caught) {
+      toast.error(caught instanceof Error ? caught.message : "Disconnect failed")
+    }
+  }
+
   async function remove(server: McpServer) {
     try {
       await apiFetch(`/api/mcp/servers/${server.id}`, { method: "DELETE" })
@@ -286,6 +310,7 @@ function McpConsole() {
               <TableHead>Enabled</TableHead>
               <TableHead>Key</TableHead>
               <TableHead>Type</TableHead>
+              <TableHead>OAuth</TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
@@ -311,6 +336,11 @@ function McpConsole() {
                     {server.is_custom ? "Custom" : "Catalog"}
                   </Badge>
                 </TableCell>
+                <TableCell>
+                  <Badge variant={server.oauth_connected ? "default" : "outline"}>
+                    {server.oauth_connected ? "OAuth connected" : "No OAuth"}
+                  </Badge>
+                </TableCell>
                 <TableCell className="text-right">
                   <div className="flex justify-end gap-1">
                     <Button
@@ -330,6 +360,26 @@ function McpConsole() {
                         onClick={() => setEditTarget(server)}
                       >
                         Edit
+                      </Button>
+                    ) : null}
+                    {isOwner ? (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        aria-label={`Connect ${server.name} with OAuth`}
+                        onClick={() => void connectOAuth(server)}
+                      >
+                        Connect OAuth
+                      </Button>
+                    ) : null}
+                    {isOwner ? (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        aria-label={`Disconnect ${server.name} OAuth`}
+                        onClick={() => void disconnectOAuth(server)}
+                      >
+                        Disconnect
                       </Button>
                     ) : null}
                     {isOwner ? (
@@ -360,6 +410,7 @@ function McpConsole() {
             docs_url: null,
             enabled: true,
             key_configured: false,
+            oauth_connected: false,
             is_custom: true,
           }}
           onOpenChange={(open) => {

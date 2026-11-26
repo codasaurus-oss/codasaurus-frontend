@@ -366,6 +366,7 @@ const mcpServerSchema = z
     docs_url: z.string().nullable(),
     enabled: z.boolean(),
     key_configured: z.boolean(),
+    oauth_connected: z.boolean().default(false),
     is_custom: z.boolean(),
   })
   .passthrough()
