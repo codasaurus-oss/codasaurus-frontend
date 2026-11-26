@@ -12,6 +12,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible"
+import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
 import {
@@ -82,6 +83,7 @@ function RepoEditor({
 }) {
   const queryClient = useQueryClient()
   const [configText, setConfigText] = useState(repo.config_json ?? "")
+  const [branch, setBranch] = useState(repo.default_branch ?? "")
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<unknown>(null)
   const [deleting, setDeleting] = useState(false)
@@ -102,7 +104,11 @@ function RepoEditor({
     try {
       await apiFetch(`/api/repos/${repo.id}`, {
         method: "PUT",
-        body: JSON.stringify({ config_json: configText, active }),
+        body: JSON.stringify({
+          config_json: configText,
+          active,
+          default_branch: branch.trim() ? branch.trim() : null,
+        }),
       })
       toast.success("Repository updated")
       await Promise.all([
@@ -149,6 +155,20 @@ function RepoEditor({
           <ChevronDownIcon />
         </CollapsibleTrigger>
         <CollapsibleContent className="flex flex-col gap-2 pt-2">
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="repo-default-branch">Main branch</Label>
+            <Input
+              id="repo-default-branch"
+              aria-label="Main branch"
+              value={branch}
+              placeholder="main"
+              onChange={(event) => setBranch(event.target.value)}
+            />
+            <span className="text-xs text-muted-foreground">
+              Used as the base branch for reviews. GitHub sync will not
+              overwrite this value.
+            </span>
+          </div>
           <p className="text-xs text-muted-foreground">
             Optional per-repository JSON used by Codasaurus review rules. This
             is not codasaurus.toml. Leave it empty to use defaults.
@@ -269,9 +289,6 @@ function RepoConfigDialog({
         ) : (
           <>
             <div className="flex flex-col gap-2 overflow-y-auto px-4 text-sm">
-              <Detail label="Default branch">
-                {repo.default_branch ?? "—"}
-              </Detail>
               <Detail label="Visibility">
                 <Badge variant={repo.private ? "secondary" : "outline"}>
                   {repo.private ? "Private" : "Public"}

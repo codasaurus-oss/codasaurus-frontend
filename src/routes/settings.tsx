@@ -61,6 +61,12 @@ import {
   settingsActionResultSchema,
   type SettingsMap,
 } from "@/lib/api/schemas"
+import {
+  ADVANCED_GROUPS,
+  GROUP_DESCRIPTIONS,
+  PRIMARY_GROUPS,
+  groupSettings,
+} from "@/features/settings/advanced-fields"
 import { useAuth } from "@/lib/auth/auth-context"
 import { can } from "@/lib/auth/roles"
 
@@ -119,119 +125,10 @@ const TABS: Record<TabId, TabMeta> = {
   },
   advanced: {
     label: "Advanced",
-    description: "Review policy, detector toggles and runtime limits.",
-    fields: [
-      ["default_severity", "Default severity"],
-      ["review_strictness", "Review strictness"],
-      ["max_blocking", "Max blocking findings"],
-      ["max_warnings", "Max warnings"],
-      ["forbidden_paths", "Forbidden paths"],
-      ["request_reviewers", "Request reviewers"],
-      ["create_check_run", "Create check run"],
-      ["hallucinated_imports_enabled", "Hallucinated imports"],
-      ["phantom_deps_enabled", "Phantom dependencies"],
-      ["vulnerabilities_enabled", "Vulnerabilities"],
-      ["secrets_enabled", "Secrets"],
-      ["over_engineering_enabled", "Over-engineering"],
-      ["boilerplate_enabled", "Boilerplate"],
-      ["todo_leaks_enabled", "TODO leaks"],
-      ["stale_api_enabled", "Stale API usage"],
-      ["risky_patterns_enabled", "Risky patterns"],
-      ["graph_enabled", "Repository graph"],
-      ["guidelines_enabled", "Guidelines"],
-      ["iac_enabled", "Infrastructure as code"],
-      ["auto_labels_enabled", "Auto labels"],
-      ["exclude_patterns", "Exclude patterns"],
-      ["update_pr_description", "Update PR description"],
-      ["custom_instructions", "Custom instructions"],
-      ["allow_auto_fix", "Allow auto fix"],
-      ["auto_approve", "Auto approve"],
-      ["pr_title_fix", "PR title fix"],
-      ["audit_retention_days", "Audit retention (days)"],
-      ["queue_workers", "Queue workers"],
-      ["max_concurrent_reviews", "Max concurrent reviews"],
-      ["review_timeout_secs", "Review timeout (seconds)"],
-      ["max_inline_comments", "Max inline comments"],
-      ["max_reviewer_files", "Max reviewer files"],
-      ["max_comment_bytes", "Max comment bytes"],
-      ["max_llm_diff_chars", "Max LLM diff characters"],
-      ["auto_improve_max_files", "Auto-improve max files"],
-      ["auto_improve_max_diff", "Auto-improve max diff"],
-      ["hsts", "HSTS"],
-      ["metrics_token", "Metrics token"],
-      ["secure_cookies", "Secure cookies"],
-      ["insecure_cookies", "Insecure cookies"],
-    ],
+    description: "Review policy, detectors and output behavior.",
+    fields: [],
   },
 }
-
-const ADVANCED_GROUPS = [
-  {
-    title: "Review policy",
-    description: "Severity, strictness, limits, and reviewer behavior.",
-    keys: [
-      "default_severity",
-      "review_strictness",
-      "max_blocking",
-      "max_warnings",
-      "forbidden_paths",
-      "request_reviewers",
-      "create_check_run",
-      "update_pr_description",
-    ],
-  },
-  {
-    title: "Detectors",
-    description: "Choose which review detectors run.",
-    keys: [
-      "hallucinated_imports_enabled",
-      "phantom_deps_enabled",
-      "vulnerabilities_enabled",
-      "secrets_enabled",
-      "over_engineering_enabled",
-      "boilerplate_enabled",
-      "todo_leaks_enabled",
-      "stale_api_enabled",
-      "risky_patterns_enabled",
-      "graph_enabled",
-      "guidelines_enabled",
-      "iac_enabled",
-      "auto_labels_enabled",
-    ],
-  },
-  {
-    title: "Output behavior",
-    description: "Custom instructions, fixes, and approvals.",
-    keys: [
-      "custom_instructions",
-      "exclude_patterns",
-      "allow_auto_fix",
-      "auto_approve",
-      "pr_title_fix",
-    ],
-  },
-  {
-    title: "Runtime limits",
-    description: "Workers, timeouts, and review size limits.",
-    keys: [
-      "audit_retention_days",
-      "queue_workers",
-      "max_concurrent_reviews",
-      "review_timeout_secs",
-      "max_inline_comments",
-      "max_reviewer_files",
-      "max_comment_bytes",
-      "max_llm_diff_chars",
-      "auto_improve_max_files",
-      "auto_improve_max_diff",
-    ],
-  },
-  {
-    title: "Security",
-    description: "Cookies, HSTS, and metrics access.",
-    keys: ["hsts", "metrics_token", "secure_cookies", "insecure_cookies"],
-  },
-] as const
 
 const TAB_IDS = Object.keys(TABS) as TabId[]
 
@@ -672,25 +569,20 @@ function TabBody({
             <CardDescription>{meta.description}</CardDescription>
           </CardHeader>
           <CardContent>
-            <Accordion defaultValue={ADVANCED_GROUPS.map((group) => group.title)}>
-              {ADVANCED_GROUPS.map((group) => (
-                <AccordionItem key={group.title} value={group.title}>
+            <Accordion multiple defaultValue={[...PRIMARY_GROUPS]}>
+              {[...PRIMARY_GROUPS, ...ADVANCED_GROUPS].map((group) => (
+                <AccordionItem key={group} value={group}>
                   <AccordionTrigger>
                     <span className="flex flex-col items-start gap-0.5">
-                      <span>{group.title}</span>
+                      <span>{group}</span>
                       <span className="text-xs font-normal text-muted-foreground">
-                        {group.description}
+                        {GROUP_DESCRIPTIONS[group]}
                       </span>
                     </span>
                   </AccordionTrigger>
                   <AccordionContent>
                     {fields(
-                      group.keys.map((key) => {
-                        const entry = TABS.advanced.fields.find(
-                          ([fieldKey]) => fieldKey === key
-                        )
-                        return entry ?? [key, key]
-                      })
+                      groupSettings(group).map(({ key, label }) => [key, label])
                     )}
                   </AccordionContent>
                 </AccordionItem>
