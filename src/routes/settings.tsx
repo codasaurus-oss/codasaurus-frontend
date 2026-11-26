@@ -53,6 +53,7 @@ import { withCurrent } from "@/lib/model-options"
 import {
   githubSettingsQueryOptions,
   llmConfigQueryOptions,
+  mcpServersQueryOptions,
   queryKeys,
   settingsQueryOptions,
 } from "@/lib/api/queries"
@@ -520,6 +521,7 @@ function LlmCard() {
 type TabBodyProps = {
   tab: TabId
   values: SettingsMap
+  mcpServers: ReturnType<typeof useQuery<{ servers: Array<{ id: string; key_configured: boolean }> }>>
   tests: Record<string, TestState>
   clearErrors: Record<string, unknown>
   onSaved: (key: string, restartRequired: boolean) => void
@@ -530,6 +532,7 @@ type TabBodyProps = {
 function TabBody({
   tab,
   values,
+  mcpServers,
   tests,
   clearErrors,
   onSaved,
@@ -559,6 +562,30 @@ function TabBody({
   return (
     <div className="flex flex-col gap-4">
       {tab === "general" ? <OfflineCard values={values} /> : null}
+      {tab === "tickets" ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Ticket providers</CardTitle>
+            <CardDescription>
+              Jira and Linear credentials are shared with their MCP servers.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-wrap gap-2">
+            {["atlassian", "linear"].map((id) => {
+              const server = mcpServers.data?.servers.find(
+                (entry) => entry.id === id
+              )
+              return (
+                <Badge key={id} variant={server?.key_configured ? "default" : "outline"}>
+                  {id === "atlassian" ? "Atlassian MCP" : "Linear MCP"}:{" "}
+                  {server?.key_configured ? "Configured" : "Not set"}
+                </Badge>
+              )
+            })}
+          </CardContent>
+        </Card>
+      ) : null}
+
       {tab === "github" ? <RegistrationCard /> : null}
       {tab === "llm" ? <LlmCard /> : null}
 
@@ -681,6 +708,7 @@ function TabBody({
 function SettingsConsole() {
   const queryClient = useQueryClient()
   const settings = useQuery(settingsQueryOptions)
+  const mcpServers = useQuery(mcpServersQueryOptions)
   const [tab, setTab] = useState<TabId>("general")
   const [restartKeys, setRestartKeys] = useState<string[]>([])
   const [tests, setTests] = useState<Record<string, TestState>>({})
@@ -800,6 +828,7 @@ function SettingsConsole() {
             <TabBody
               tab={id}
               values={values}
+              mcpServers={mcpServers}
               tests={tests}
               clearErrors={clearErrors}
               onSaved={handleSaved}

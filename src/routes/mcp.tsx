@@ -182,6 +182,7 @@ function McpConsole() {
   const servers = useQuery(mcpServersQueryOptions)
   const [testing, setTesting] = useState<string | null>(null)
   const [editTarget, setEditTarget] = useState<McpServer | null>(null)
+  const [addOpen, setAddOpen] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<McpServer | null>(null)
   const isOwner = can(user?.role, "owner")
 
@@ -215,6 +216,23 @@ function McpConsole() {
     }
   }
 
+  async function resetDefaults() {
+    try {
+      const catalog = (servers.data?.servers ?? []).filter(
+        (server) => !server.is_custom
+      )
+      await Promise.all(
+        catalog.map((server) =>
+          apiFetch(`/api/mcp/servers/${server.id}`, { method: "DELETE" })
+        )
+      )
+      toast.success("Catalog defaults restored")
+      await queryClient.invalidateQueries({ queryKey: queryKeys.mcpServers })
+    } catch (caught) {
+      toast.error(caught instanceof Error ? caught.message : "Reset failed")
+    }
+  }
+
   if (servers.isPending) {
     return <LoadingState rows={6} />
   }
@@ -233,6 +251,26 @@ function McpConsole() {
         title="MCP servers"
         description="Model Context Protocol connectors available to reviews."
       />
+
+      {isOwner ? (
+        <div className="flex flex-wrap gap-2">
+          <Button
+            size="sm"
+            aria-label="Add MCP server"
+            onClick={() => setAddOpen(true)}
+          >
+            Add server
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            aria-label="Reset catalog defaults"
+            onClick={() => void resetDefaults()}
+          >
+            Reset defaults
+          </Button>
+        </div>
+      ) : null}
 
       {servers.data.servers.length === 0 ? (
         <EmptyState
@@ -311,6 +349,26 @@ function McpConsole() {
           </TableBody>
         </Table>
       )}
+
+      {addOpen ? (
+        <ServerDialog
+          key="new-custom-server"
+          server={{
+            id: `custom-${Math.random().toString(36).slice(2, 10)}`,
+            name: "",
+            base_url: "",
+            docs_url: null,
+            enabled: true,
+            key_configured: false,
+            is_custom: true,
+          }}
+          onOpenChange={(open) => {
+            if (!open) {
+              setAddOpen(false)
+            }
+          }}
+        />
+      ) : null}
 
       {editTarget ? (
         <ServerDialog

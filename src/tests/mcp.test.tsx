@@ -111,6 +111,32 @@ afterEach(() => {
 })
 
 describe("mcp servers", () => {
+
+  it("adds a custom MCP server through the existing upsert endpoint", async () => {
+    const fetchMock = stubApi()
+    renderMcp()
+    await screen.findByText("Context7")
+
+    fireEvent.click(screen.getByRole("button", { name: "Add MCP server" }))
+    fireEvent.change(await screen.findByLabelText("Name"), {
+      target: { value: "Local docs" },
+    })
+    fireEvent.change(screen.getByLabelText("Base URL"), {
+      target: { value: "https://mcp.example.com/mcp" },
+    })
+    fireEvent.click(screen.getByRole("button", { name: "Save" }))
+
+    await waitFor(() => {
+      const [put] = putCalls(fetchMock)
+      expect(put).toBeDefined()
+      expect(String(put?.[0])).toMatch(/^\/api\/mcp\/servers\/custom-/)
+      const body = JSON.parse(String(put?.[1]?.body))
+      expect(body.base_url).toBe("https://mcp.example.com/mcp")
+      expect(body.name).toBe("Local docs")
+      expect(body.enabled).toBe(true)
+    })
+  })
+
   it("blocks viewers with a 403", async () => {
     const fetchMock = stubApi("viewer")
     renderMcp()
