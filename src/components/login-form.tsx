@@ -47,10 +47,16 @@ function loginErrorMessage(error: unknown) {
 type LoginFormProps = {
   from: string
   oidcEnabled: boolean
+  localPasswordEnabled?: boolean
   className?: string
 }
 
-function LoginForm({ from, oidcEnabled, className }: LoginFormProps) {
+function LoginForm({
+  from,
+  oidcEnabled,
+  localPasswordEnabled = true,
+  className,
+}: LoginFormProps) {
   const { refresh } = useAuth()
   const navigate = useNavigate()
   const [error, setError] = useState<string | null>(null)
@@ -82,7 +88,9 @@ function LoginForm({ from, oidcEnabled, className }: LoginFormProps) {
         <CardHeader>
           <CardTitle>Sign in to Codasaurus</CardTitle>
           <CardDescription>
-            Enter your email and password to continue.
+            {localPasswordEnabled
+              ? "Enter your email and password to continue."
+              : "Sign in through your organization identity provider to continue."}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -93,52 +101,63 @@ function LoginForm({ from, oidcEnabled, className }: LoginFormProps) {
               <AlertDescription>{error}</AlertDescription>
             </Alert>
           ) : null}
-          <form onSubmit={form.handleSubmit(onSubmit)} noValidate>
-            <FieldGroup>
-              <Field data-invalid={Boolean(errors.email)}>
-                <FieldLabel htmlFor="login-email">Email</FieldLabel>
-                <Input
-                  id="login-email"
-                  type="email"
-                  autoComplete="email"
-                  aria-invalid={Boolean(errors.email)}
-                  aria-describedby={errors.email ? "login-email-error" : undefined}
-                  {...form.register("email")}
-                />
-                <FieldError id="login-email-error" errors={[errors.email]} />
-              </Field>
-              <Field data-invalid={Boolean(errors.password)}>
-                <FieldLabel htmlFor="login-password">Password</FieldLabel>
-                <Input
-                  id="login-password"
-                  type="password"
-                  autoComplete="current-password"
-                  aria-invalid={Boolean(errors.password)}
-                  aria-describedby={
-                    errors.password ? "login-password-error" : undefined
-                  }
-                  {...form.register("password")}
-                />
-                <FieldError id="login-password-error" errors={[errors.password]} />
-              </Field>
-              <Field>
-                <Button type="submit" disabled={form.formState.isSubmitting}>
-                  {form.formState.isSubmitting ? "Signing in..." : "Sign in"}
-                </Button>
-                {oidcEnabled ? (
-                  <>
-                    <FieldSeparator>Or continue with</FieldSeparator>
-                    <Button
-                      variant="outline"
-                      render={<a href="/api/auth/oidc/login" />}
-                    >
-                      Sign in with SSO
-                    </Button>
-                  </>
-                ) : null}
-              </Field>
-            </FieldGroup>
-          </form>
+          {localPasswordEnabled ? (
+            <form onSubmit={form.handleSubmit(onSubmit)} noValidate>
+              <FieldGroup>
+                <Field data-invalid={Boolean(errors.email)}>
+                  <FieldLabel htmlFor="login-email">Email</FieldLabel>
+                  <Input
+                    id="login-email"
+                    type="email"
+                    autoComplete="email"
+                    aria-invalid={Boolean(errors.email)}
+                    aria-describedby={errors.email ? "login-email-error" : undefined}
+                    {...form.register("email")}
+                  />
+                  <FieldError id="login-email-error" errors={[errors.email]} />
+                </Field>
+                <Field data-invalid={Boolean(errors.password)}>
+                  <FieldLabel htmlFor="login-password">Password</FieldLabel>
+                  <Input
+                    id="login-password"
+                    type="password"
+                    autoComplete="current-password"
+                    aria-invalid={Boolean(errors.password)}
+                    aria-describedby={
+                      errors.password ? "login-password-error" : undefined
+                    }
+                    {...form.register("password")}
+                  />
+                  <FieldError id="login-password-error" errors={[errors.password]} />
+                </Field>
+                <Field>
+                  <Button type="submit" disabled={form.formState.isSubmitting}>
+                    {form.formState.isSubmitting ? "Signing in..." : "Sign in"}
+                  </Button>
+                  {oidcEnabled ? (
+                    <>
+                      <FieldSeparator>Or continue with</FieldSeparator>
+                      <Button
+                        variant="outline"
+                        render={<a href="/api/auth/oidc/login" />}
+                      >
+                        Sign in with SSO
+                      </Button>
+                    </>
+                  ) : null}
+                </Field>
+              </FieldGroup>
+            </form>
+          ) : null}
+          {!localPasswordEnabled && oidcEnabled ? (
+            <Button
+              className="w-full"
+              variant="outline"
+              render={<a href="/api/auth/oidc/login" />}
+            >
+              Continue with ZITADEL
+            </Button>
+          ) : null}
         </CardContent>
       </Card>
     </div>

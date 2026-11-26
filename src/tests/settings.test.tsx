@@ -145,6 +145,14 @@ async function renderedSettingKeys() {
         )
       ).toHaveLength(1)
     )
+    if (name === "Advanced") {
+      for (const group of ["Runtime limits", "Security"]) {
+        const trigger = screen.getByRole("button", { name: new RegExp(group) })
+        if (trigger.getAttribute("aria-expanded") === "false") {
+          fireEvent.click(trigger)
+        }
+      }
+    }
     const panel = document.querySelector(
       '[data-slot="tabs-content"]:not([data-hidden])'
     )
@@ -418,6 +426,7 @@ describe("settings", () => {
 
     await screen.findByLabelText("Public URL")
     fireEvent.click(screen.getByRole("tab", { name: "Advanced" }))
+    fireEvent.click(screen.getByRole("button", { name: /Security/ }))
 
     fireEvent.click(await screen.findByRole("button", { name: "Clear Metrics token" }))
 
@@ -435,6 +444,7 @@ describe("settings", () => {
 
     await screen.findByLabelText("Public URL")
     fireEvent.click(screen.getByRole("tab", { name: "Advanced" }))
+    fireEvent.click(screen.getByRole("button", { name: /Runtime limits/ }))
 
     const workers = await screen.findByLabelText("Queue workers")
     fireEvent.change(workers, { target: { value: "6" } })

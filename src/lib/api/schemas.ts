@@ -146,6 +146,9 @@ const inviteInfoSchema = z
 const oidcStatusSchema = z
   .object({
     enabled: z.boolean(),
+    provider: z.string().optional(),
+    managed_by_provider: z.boolean().optional(),
+    local_password_enabled: z.boolean().optional(),
   })
   .passthrough()
 
@@ -363,6 +366,7 @@ const mcpServerSchema = z
     docs_url: z.string().nullable(),
     enabled: z.boolean(),
     key_configured: z.boolean(),
+    oauth_connected: z.boolean().default(false),
     is_custom: z.boolean(),
   })
   .passthrough()

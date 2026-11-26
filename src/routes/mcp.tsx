@@ -182,6 +182,7 @@ function McpConsole() {
   const servers = useQuery(mcpServersQueryOptions)
   const [testing, setTesting] = useState<string | null>(null)
   const [editTarget, setEditTarget] = useState<McpServer | null>(null)
+  const [addOpen, setAddOpen] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<McpServer | null>(null)
   const isOwner = can(user?.role, "owner")
 
@@ -205,6 +206,30 @@ function McpConsole() {
     }
   }
 
+  async function connectOAuth(server: McpServer) {
+    try {
+      const result = await apiFetch<{ authorize_url: string }>(
+        `/api/mcp/oauth/start/${server.id}`,
+        { method: "GET" }
+      )
+      window.location.href = result.authorize_url
+    } catch (caught) {
+      toast.error(caught instanceof Error ? caught.message : "OAuth setup failed")
+    }
+  }
+
+  async function disconnectOAuth(server: McpServer) {
+    try {
+      await apiFetch(`/api/mcp/oauth/disconnect/${server.id}`, {
+        method: "POST",
+      })
+      toast.success(`${server.name} disconnected`)
+      await queryClient.invalidateQueries({ queryKey: queryKeys.mcpServers })
+    } catch (caught) {
+      toast.error(caught instanceof Error ? caught.message : "Disconnect failed")
+    }
+  }
+
   async function remove(server: McpServer) {
     try {
       await apiFetch(`/api/mcp/servers/${server.id}`, { method: "DELETE" })
@@ -212,6 +237,23 @@ function McpConsole() {
       await queryClient.invalidateQueries({ queryKey: queryKeys.mcpServers })
     } catch (caught) {
       toast.error(caught instanceof Error ? caught.message : "Delete failed")
+    }
+  }
+
+  async function resetDefaults() {
+    try {
+      const catalog = (servers.data?.servers ?? []).filter(
+        (server) => !server.is_custom
+      )
+      await Promise.all(
+        catalog.map((server) =>
+          apiFetch(`/api/mcp/servers/${server.id}`, { method: "DELETE" })
+        )
+      )
+      toast.success("Catalog defaults restored")
+      await queryClient.invalidateQueries({ queryKey: queryKeys.mcpServers })
+    } catch (caught) {
+      toast.error(caught instanceof Error ? caught.message : "Reset failed")
     }
   }
 
@@ -234,6 +276,26 @@ function McpConsole() {
         description="Model Context Protocol connectors available to reviews."
       />
 
+      {isOwner ? (
+        <div className="flex flex-wrap gap-2">
+          <Button
+            size="sm"
+            aria-label="Add MCP server"
+            onClick={() => setAddOpen(true)}
+          >
+            Add server
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            aria-label="Reset catalog defaults"
+            onClick={() => void resetDefaults()}
+          >
+            Reset defaults
+          </Button>
+        </div>
+      ) : null}
+
       {servers.data.servers.length === 0 ? (
         <EmptyState
           title="No MCP servers"
@@ -248,6 +310,7 @@ function McpConsole() {
               <TableHead>Enabled</TableHead>
               <TableHead>Key</TableHead>
               <TableHead>Type</TableHead>
+              <TableHead>OAuth</TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
@@ -271,6 +334,11 @@ function McpConsole() {
                 <TableCell>
                   <Badge variant="outline">
                     {server.is_custom ? "Custom" : "Catalog"}
+                  </Badge>
+                </TableCell>
+                <TableCell>
+                  <Badge variant={server.oauth_connected ? "default" : "outline"}>
+                    {server.oauth_connected ? "OAuth connected" : "No OAuth"}
                   </Badge>
                 </TableCell>
                 <TableCell className="text-right">
@@ -298,6 +366,26 @@ function McpConsole() {
                       <Button
                         variant="ghost"
                         size="sm"
+                        aria-label={`Connect ${server.name} with OAuth`}
+                        onClick={() => void connectOAuth(server)}
+                      >
+                        Connect OAuth
+                      </Button>
+                    ) : null}
+                    {isOwner ? (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        aria-label={`Disconnect ${server.name} OAuth`}
+                        onClick={() => void disconnectOAuth(server)}
+                      >
+                        Disconnect
+                      </Button>
+                    ) : null}
+                    {isOwner ? (
+                      <Button
+                        variant="ghost"
+                        size="sm"
                         aria-label={`Delete ${server.name}`}
                         onClick={() => setDeleteTarget(server)}
                       >
@@ -311,6 +399,27 @@ function McpConsole() {
           </TableBody>
         </Table>
       )}
+
+      {addOpen ? (
+        <ServerDialog
+          key="new-custom-server"
+          server={{
+            id: `custom-${Math.random().toString(36).slice(2, 10)}`,
+            name: "",
+            base_url: "",
+            docs_url: null,
+            enabled: true,
+            key_configured: false,
+            oauth_connected: false,
+            is_custom: true,
+          }}
+          onOpenChange={(open) => {
+            if (!open) {
+              setAddOpen(false)
+            }
+          }}
+        />
+      ) : null}
 
       {editTarget ? (
         <ServerDialog
