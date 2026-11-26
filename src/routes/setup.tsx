@@ -75,6 +75,29 @@ function SetupRoute() {
   if (status.complete && !finishing) {
     return <Navigate to="/app/dashboard" replace />
   }
+  // Creating the owner closes the public bootstrap window.  A partially
+  // configured instance must therefore be resumed from an authenticated
+  // session. Keep this page useful for a direct visit, but do not mount a
+  // protected step: otherwise the first request would surface a misleading
+  // 401 (for example, "Could not load providers") inside the wizard.
+  if (status.admin) {
+    return (
+      <div className="flex min-h-svh items-center justify-center p-6">
+        <Card className="w-full max-w-xl">
+          <CardHeader>
+            <CardTitle>Setup is locked</CardTitle>
+            <CardDescription>
+              An owner account already exists. Sign in to finish configuration
+              from Settings.
+            </CardDescription>
+          </CardHeader>
+          <CardFooter>
+            <Button render={<a href="#/login" />}>Sign in</Button>
+          </CardFooter>
+        </Card>
+      </div>
+    )
+  }
 
   const activeId =
     selected && isStepUnlocked(status, selected)

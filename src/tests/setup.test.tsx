@@ -532,6 +532,23 @@ describe("setup wizard", () => {
     expect(await screen.findByText("dashboard destination")).toBeInTheDocument()
   })
 
+  it("does not call protected setup steps after an owner exists", async () => {
+    stubFetch(() =>
+      jsonResponse({
+        ...baseStatus,
+        admin: true,
+      })
+    )
+    renderSetup(newClient())
+
+    expect(await screen.findByText("Setup is locked")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Sign in" })).toHaveAttribute(
+      "href",
+      "#/login"
+    )
+    expect(screen.queryByText("First-run setup")).toBeNull()
+  })
+
   it("completes the Inference step when AI is skipped", async () => {
     let llmConfigured = false
     const fetchMock = stubFetch((url, init) => {
