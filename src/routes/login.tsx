@@ -34,6 +34,7 @@ function LoginRoute() {
             <LoginForm
               from={intendedRoute(location.state)}
               oidcEnabled={oidc.data?.enabled ?? false}
+              localPasswordEnabled={oidc.data?.local_password_enabled ?? true}
             />
           </div>
         </div>
