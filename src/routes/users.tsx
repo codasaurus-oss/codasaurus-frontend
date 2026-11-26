@@ -36,6 +36,7 @@ import { InviteDialog } from "@/features/users/invite-dialog"
 import { apiFetch } from "@/lib/api/client"
 import {
   invitesQueryOptions,
+  oidcStatusQueryOptions,
   queryKeys,
   usersQueryOptions,
 } from "@/lib/api/queries"
@@ -50,8 +51,13 @@ function UsersRoute() {
   const { user, refresh } = useAuth()
   const queryClient = useQueryClient()
   const isOwner = can(user?.role, "owner")
+  const authConfig = useQuery(oidcStatusQueryOptions)
+  const providerManaged = authConfig.data?.managed_by_provider ?? false
   const users = useQuery(usersQueryOptions)
-  const invites = useQuery({ ...invitesQueryOptions, enabled: isOwner })
+  const invites = useQuery({
+    ...invitesQueryOptions,
+    enabled: isOwner && !providerManaged,
+  })
   const [tab, setTab] = useState<TabId>("users")
   const [roleChange, setRoleChange] = useState<{
     user: User
@@ -144,7 +150,9 @@ function UsersRoute() {
       <Tabs value={tab} onValueChange={(value) => setTab(value as TabId)}>
         <TabsList>
           <TabsTrigger value="users">Users</TabsTrigger>
-          {isOwner ? <TabsTrigger value="invites">Invites</TabsTrigger> : null}
+          {isOwner && !providerManaged ? (
+            <TabsTrigger value="invites">Invites</TabsTrigger>
+          ) : null}
         </TabsList>
 
         <TabsContent value="users">
@@ -259,7 +267,7 @@ function UsersRoute() {
           </Table>
         </TabsContent>
 
-        {isOwner ? (
+        {isOwner && !providerManaged ? (
           <TabsContent value="invites">
             <div className="flex flex-col gap-4">
               <div className="flex justify-end">
