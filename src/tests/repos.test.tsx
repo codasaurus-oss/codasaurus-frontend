@@ -254,6 +254,7 @@ describe("repositories", () => {
       expect(JSON.parse(String(put?.[1]?.body))).toEqual({
         config_json: pretty,
         active: true,
+        default_branch: "main",
       })
     })
   })

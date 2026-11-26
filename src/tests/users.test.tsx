@@ -290,6 +290,7 @@ describe("users", () => {
       expect(JSON.parse(String(post?.[1]?.body))).toEqual({
         email: "new@example.com",
         role: "viewer",
+        capabilities: [],
       })
     })
   })
